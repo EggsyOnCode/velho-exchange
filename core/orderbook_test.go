@@ -55,3 +55,27 @@ func TestOrderBook(t *testing.T) {
 	assert.Equal(t, expectedOrder, order)
 	assert.Equal(t, ob.BidsMap[1300].TotalVolume, float64(1200))
 }
+
+func TestSortingOfLimitsAndOrders(t *testing.T) {
+	ob := NewOrderBook()
+	orders := []*Order{
+		NewOrder(3, true, 400),
+		NewOrder(3, true, 400),
+		NewOrder(2, true, 300),
+		NewOrder(1, true, 200),
+	}
+
+	for _, o := range orders {
+		ob.PlaceOrder(float64(o.Size)*o.Price, o)
+	}
+
+	ob.Bids.Each(func(key float64, val *Limit) {
+		fmt.Println(key, val)
+	})
+
+	ob.BidsMap[1200].Orders.Each(func(key int64, val *Order) {
+		fmt.Println(key, val)
+	})
+
+	assert.Equal(t, ob.Bids.Size(), 3)
+}

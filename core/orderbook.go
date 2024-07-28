@@ -33,11 +33,14 @@ func NewOrder(size int64, bid bool, price float64) *Order {
 }
 
 func (o *Order) String() string {
-	return fmt.Sprintf("Order{Size: %d, Timestamp: %d, Bid: %v}", o.Size, o.Timestamp, o.Bid)
+	t := time.Unix(o.Timestamp, 0)
+	format := t.Format("2006-01-02 15:04:05")
+	return fmt.Sprintf("Order{Size: %d, Timestamp: %v, Bid: %v}", o.Size, format, o.Bid)
 }
 
 type Limit struct {
-	Price       float64
+	Price float64
+	// sorted by timestamps
 	Orders      *avl.Tree[int64, *Order]
 	TotalVolume float64
 }
@@ -45,13 +48,13 @@ type Limit struct {
 func NewLimit(price float64) *Limit {
 	return &Limit{
 		Price:       price,
-		Orders:      avl.New[int64, *Order](g.Less[int64]),
+		Orders:      avl.New[int64, *Order](g.Greater[int64]),
 		TotalVolume: 0,
 	}
 }
 
 type OrderBook struct {
-	// they'll be sorted totalVolume
+	// they'll be sorted by price levels
 	Asks *avl.Tree[float64, *Limit]
 	Bids *avl.Tree[float64, *Limit]
 
@@ -62,8 +65,8 @@ type OrderBook struct {
 
 func NewOrderBook() *OrderBook {
 	return &OrderBook{
-		Asks:    avl.New[float64, *Limit](g.Less[float64]),
-		Bids:    avl.New[float64, *Limit](g.Less[float64]),
+		Asks:    avl.New[float64, *Limit](g.Greater[float64]),
+		Bids:    avl.New[float64, *Limit](g.Greater[float64]),
 		AsksMap: make(map[float64]*Limit),
 		BidsMap: make(map[float64]*Limit),
 	}
