@@ -20,7 +20,8 @@ type Order struct {
 	Timestamp int64
 	Price     float64
 	// if the order is for sell then its false, otherwise its true (for buy)
-	Bid bool
+	Bid   bool
+	Limit *Limit
 }
 
 func NewOrder(size int64, bid bool, price float64) *Order {
@@ -98,11 +99,14 @@ func (l *Limit) AddOrder(o *Order) {
 	l.TotalVolume += float64(o.Size * int64(o.Price))
 }
 
-func (l *Limit) RemoveOrders(orders []*Order) {
+// cancel / clear order
+func (l *Limit) RemoveOrders(orders []*Order) bool {
 	for _, o := range orders {
 		l.Orders.Remove(o.Timestamp)
 		l.TotalVolume -= float64(o.Size * int64(o.Price))
 	}
+
+	return l.Orders.Size() == 0
 }
 
 // we fill a bid / buyOrder
@@ -132,15 +136,12 @@ func (l *Limit) Fill(o *Order) ([]Match, bool) {
 		}
 	})
 
-	if len(filledOrders) == l.Orders.Size() {
-		l.RemoveOrders(filledOrders)
-		// true flag indicates that the limit itself needs to be deleted
+	flag := l.RemoveOrders(filledOrders)
+	if flag {
 		return matches, true
 	}
 
-	l.RemoveOrders(filledOrders)
-
-	// false flag indicates that the limit itself doesn't need to be deleted
+	// if the limit is empty, then we'll remove it from the orderbook
 	return matches, false
 }
 
@@ -207,11 +208,13 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 		if l, ok := ob.BidsMap[price]; ok {
 			limit = l
 			l.AddOrder(o)
+			o.Limit = limit
 			ob.totalBidVolume += o.TotalPrice()
 		} else {
 			limit = NewLimit(price)
 			ob.BidsMap[price] = limit
 			limit.AddOrder(o)
+			o.Limit = limit
 			ob.Bids.Put(price, limit)
 			ob.totalBidVolume += o.TotalPrice()
 		}
@@ -219,11 +222,13 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 		if l, ok := ob.AsksMap[price]; ok {
 			limit = l
 			l.AddOrder(o)
+			o.Limit = limit
 			ob.totalAskVolume += o.TotalPrice()
 		} else {
 			limit = NewLimit(price)
 			ob.AsksMap[price] = limit
 			limit.AddOrder(o)
+			o.Limit = limit
 			ob.Asks.Put(price, limit)
 			ob.totalAskVolume += o.TotalPrice()
 		}
@@ -293,4 +298,12 @@ func (ob *OrderBook) PlaceMarketOrder(price float64, o *Order) []Match {
 	}
 
 	return matches
+}
+
+func (ob *OrderBook) CancelOrder(o *Order) {
+	limit := o.Limit
+	flag := limit.RemoveOrders([]*Order{o})
+	if flag {
+		ob.DeleteLimit(limit.Price, o.Bid)
+	}
 }
