@@ -82,7 +82,7 @@ func TestSortingOfLimitsAndOrders(t *testing.T) {
 	assert.Equal(t, ob.Asks.Size(), 3)
 }
 
-func TestPlaceMarketOrder(t *testing.T) {
+func TestPlaceBuyMarketOrder(t *testing.T) {
 	ob := NewOrderBook()
 
 	// selling 3 BTC
@@ -92,14 +92,42 @@ func TestPlaceMarketOrder(t *testing.T) {
 	ob.PlaceLimitOrder(sellOrder1.TotalPrice(), sellOrder1)
 
 	// buying 5 BTC
-	buyOrder := NewOrder(5, true, 400)
+	buyOrder := NewMarketOrder(5, true)
 	matches := ob.PlaceMarketOrder(buyOrder.TotalPrice(), buyOrder)
 	fmt.Printf("Matches: %v\n", matches)
 
 	assert.Equal(t, len(matches), 2)
-	assert.Equal(t, ob.Asks.Size(), 2)
-	assert.Equal(t, ob.totalAskVolume, float64(700))
+	assert.Equal(t, ob.Asks.Size(), 1)
+	assert.Equal(t, ob.totalAskVolume, float64(900))
 	assert.Equal(t, matches[0].Price, float64(1200))
+
+	// assert.NotNil(t, nil)
+}
+
+func TestPlaceSellMarketOrder(t *testing.T) {
+	ob := NewOrderBook()
+
+	// buying 3 BTC
+	buyOrder := NewOrder(3, true, 400)
+	ob.PlaceLimitOrder(buyOrder.Price, buyOrder)
+
+	buyOrder1 := NewOrder(3, true, 800)
+	ob.PlaceLimitOrder(buyOrder1.Price, buyOrder1)
+
+	buyOrder2 := NewOrder(1, true, 200)
+	ob.PlaceLimitOrder(buyOrder2.Price, buyOrder2)
+
+	// selling 5 BTC
+	sellOrder := NewMarketOrder(5, false)
+	matches := ob.PlaceMarketOrder(sellOrder.TotalPrice(), sellOrder)
+	fmt.Printf("Matches: %v\n", matches)
+
+	assert.Equal(t, len(matches), 2)
+	assert.Equal(t, ob.Bids.Size(), 2)
+	assert.Equal(t, ob.totalBidVolume, float64(600))
+	// testing order of bids being matches
+	assert.Equal(t, matches[0].Bid, buyOrder1)
+	assert.Equal(t, matches[1].Bid, buyOrder)
 
 	// assert.NotNil(t, nil)
 }

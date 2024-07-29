@@ -32,6 +32,14 @@ func NewOrder(size int64, bid bool, price float64) *Order {
 	}
 }
 
+func NewMarketOrder(size int64, bid bool) *Order {
+	return &Order{
+		Size:      size,
+		Timestamp: time.Now().UnixNano(),
+		Bid:       bid,
+	}
+}
+
 func (o *Order) TotalPrice() float64 {
 	return float64(o.Size * int64(o.Price))
 }
@@ -97,8 +105,12 @@ func (l *Limit) RemoveOrders(orders []*Order) {
 	}
 }
 
-func (l *Limit) Fill(o *Order) []Match {
-	var matches []Match
+// we fill a bid / buyOrder
+func (l *Limit) Fill(o *Order) ([]Match, bool) {
+	var (
+		matches      []Match
+		filledOrders []*Order
+	)
 	stop := false
 
 	l.Orders.Each(func(key int64, order *Order) {
@@ -109,14 +121,27 @@ func (l *Limit) Fill(o *Order) []Match {
 		match := l.fillOrder(o, order)
 		matches = append(matches, match)
 
-		l.TotalVolume -= match.SizeFilled
+		l.TotalVolume -= match.Price
+
+		if order.IsFilled() {
+			filledOrders = append(filledOrders, order)
+		}
 
 		if o.IsFilled() {
 			stop = true
 		}
 	})
 
-	return matches
+	if len(filledOrders) == l.Orders.Size() {
+		l.RemoveOrders(filledOrders)
+		// true flag indicates that the limit itself needs to be deleted
+		return matches, true
+	}
+
+	l.RemoveOrders(filledOrders)
+
+	// false flag indicates that the limit itself doesn't need to be deleted
+	return matches, false
 }
 
 func (l *Limit) fillOrder(o, order *Order) Match {
@@ -153,7 +178,23 @@ func (l *Limit) fillOrder(o, order *Order) Match {
 		Ask:        &updated_ask,
 		Bid:        &updated_bid,
 		SizeFilled: sizeFilled,
-		Price:      o.Price * sizeFilled,
+		Price:      order.Price * sizeFilled,
+	}
+}
+
+func (ob *OrderBook) DeleteLimit(price float64, bid bool) {
+	if bid {
+		if l, ok := ob.BidsMap[price]; ok {
+			delete(ob.BidsMap, price)
+			ob.Bids.Remove(price)
+			ob.totalBidVolume -= l.TotalVolume
+		}
+	} else {
+		if l, ok := ob.AsksMap[price]; ok {
+			delete(ob.AsksMap, price)
+			ob.Asks.Remove(price)
+			ob.totalAskVolume -= l.TotalVolume
+		}
 	}
 }
 
@@ -196,15 +237,58 @@ func (ob *OrderBook) PlaceMarketOrder(price float64, o *Order) []Match {
 	if o.Bid {
 		if o.TotalPrice() > ob.totalAskVolume {
 			// market order can't be filled
-			panic("Market order can't be filled")
+			panic(fmt.Errorf("market order can't be filled, not enough asks, current totalAskVolume: %f, order.TotalPrice: %f", ob.totalAskVolume, o.TotalPrice()))
 		}
+
+		stop := false
 		ob.Asks.Each(func(key float64, l *Limit) {
+
+			if stop {
+				return
+			}
 			// we'll match the order with the asks ; incrementally starting from the lowest ask
-			limitMatches := l.Fill(o)
+			limitMatches, flag := l.Fill(o)
 			matches = append(matches, limitMatches...)
+
+			if flag {
+				ob.DeleteLimit(key, false)
+			}
+
 			for _, m := range limitMatches {
 				ob.totalAskVolume -= m.Price
 			}
+
+			if o.IsFilled() {
+				stop = true
+			}
+		})
+	} else {
+
+		if o.TotalPrice() > ob.totalBidVolume {
+			// market order can't be filled
+			panic(fmt.Errorf("market order can't be consumed, not enough bids, current totalBidVolume: %f, order.TotalPrice: %f", ob.totalBidVolume, o.TotalPrice()))
+		}
+
+		stop := false
+		ob.Bids.Each(func(key float64, l *Limit) {
+			if stop {
+				return
+			}
+			// we'll match the order with the bids ; incrementally starting from the highest ask
+			limitMatches, flag := l.Fill(o)
+			matches = append(matches, limitMatches...)
+
+			if o.IsFilled() {
+				stop = true
+			}
+
+			if flag {
+				ob.DeleteLimit(key, true)
+			}
+			for _, m := range limitMatches {
+				ob.totalBidVolume -= m.Price
+			}
+
 		})
 	}
 
