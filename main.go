@@ -1,7 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"github.com/EggsyOnCode/velho-exchange/api"
+)
 
 func main() {
-	fmt.Println("Hello world!")
+	server := api.NewServer()
+
+	server.Start(":3000")
 }

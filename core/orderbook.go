@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	g "github.com/zyedidia/generic"
 	"github.com/zyedidia/generic/avl"
 )
@@ -16,6 +17,7 @@ type Match struct {
 }
 
 type Order struct {
+	ID        uuid.UUID
 	Size      int64
 	Timestamp int64
 	Price     float64
@@ -26,6 +28,7 @@ type Order struct {
 
 func NewOrder(size int64, bid bool, price float64) *Order {
 	return &Order{
+		ID:        uuid.New(),
 		Size:      size,
 		Timestamp: time.Now().UnixNano(),
 		Bid:       bid,
@@ -79,6 +82,8 @@ type OrderBook struct {
 	AsksMap map[float64]*Limit
 	BidsMap map[float64]*Limit
 
+	OrdersMap map[uuid.UUID]*Order
+
 	totalBidVolume float64
 	totalAskVolume float64
 }
@@ -88,9 +93,10 @@ func NewOrderBook() *OrderBook {
 		// asks are sorted in ascending order : lowest ask first
 		Asks: avl.New[float64, *Limit](g.Less[float64]),
 		// bids are sorted in descending order : highest bid first
-		Bids:    avl.New[float64, *Limit](g.Greater[float64]),
-		AsksMap: make(map[float64]*Limit),
-		BidsMap: make(map[float64]*Limit),
+		Bids:      avl.New[float64, *Limit](g.Greater[float64]),
+		AsksMap:   make(map[float64]*Limit),
+		BidsMap:   make(map[float64]*Limit),
+		OrdersMap: make(map[uuid.UUID]*Order),
 	}
 }
 
@@ -199,6 +205,14 @@ func (ob *OrderBook) DeleteLimit(price float64, bid bool) {
 	}
 }
 
+func (ob *OrderBook) TotalAskVolume() float64 {
+	return ob.totalAskVolume
+}
+
+func (ob *OrderBook) TotalBidVolume() float64 {
+	return ob.totalBidVolume
+}
+
 // This is for placing limit orders only
 // IMP : price level of an order could be different from o.size * o.price
 func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
@@ -208,12 +222,14 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 		if l, ok := ob.BidsMap[price]; ok {
 			limit = l
 			l.AddOrder(o)
+			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
 			ob.totalBidVolume += o.TotalPrice()
 		} else {
 			limit = NewLimit(price)
 			ob.BidsMap[price] = limit
 			limit.AddOrder(o)
+			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
 			ob.Bids.Put(price, limit)
 			ob.totalBidVolume += o.TotalPrice()
@@ -222,12 +238,14 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 		if l, ok := ob.AsksMap[price]; ok {
 			limit = l
 			l.AddOrder(o)
+			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
 			ob.totalAskVolume += o.TotalPrice()
 		} else {
 			limit = NewLimit(price)
 			ob.AsksMap[price] = limit
 			limit.AddOrder(o)
+			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
 			ob.Asks.Put(price, limit)
 			ob.totalAskVolume += o.TotalPrice()
@@ -236,7 +254,7 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 
 }
 
-func (ob *OrderBook) PlaceMarketOrder(price float64, o *Order) []Match {
+func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 	var matches []Match
 
 	if o.Bid {
@@ -306,4 +324,35 @@ func (ob *OrderBook) CancelOrder(o *Order) {
 	if flag {
 		ob.DeleteLimit(limit.Price, o.Bid)
 	}
+}
+
+func (ob *OrderBook) GetOrderById(id string) *Order {
+	uuid := uuid.MustParse(id)
+	o, _ := ob.OrdersMap[uuid]
+	return o
+}
+
+func (ob *OrderBook) CancelOrderById(id string) {
+	orderID := uuid.MustParse(id)
+	order, exists := ob.OrdersMap[orderID]
+	if !exists {
+		fmt.Printf("Order with ID %s not found\n", orderID)
+		return
+	}
+
+	var limit *Limit
+	if order.Bid {
+		limit = ob.BidsMap[order.Price]
+	} else {
+		limit = ob.AsksMap[order.Price]
+	}
+
+	if limit != nil {
+		flag := limit.RemoveOrders([]*Order{order})
+		if flag {
+			ob.DeleteLimit(limit.Price, order.Bid)
+		}
+	}
+
+	delete(ob.OrdersMap, orderID)
 }

@@ -93,7 +93,7 @@ func TestPlaceBuyMarketOrder(t *testing.T) {
 
 	// buying 5 BTC
 	buyOrder := NewMarketOrder(5, true)
-	matches := ob.PlaceMarketOrder(buyOrder.TotalPrice(), buyOrder)
+	matches := ob.PlaceMarketOrder(buyOrder)
 	fmt.Printf("Matches: %v\n", matches)
 
 	assert.Equal(t, len(matches), 2)
@@ -119,7 +119,7 @@ func TestPlaceSellMarketOrder(t *testing.T) {
 
 	// selling 5 BTC
 	sellOrder := NewMarketOrder(5, false)
-	matches := ob.PlaceMarketOrder(sellOrder.TotalPrice(), sellOrder)
+	matches := ob.PlaceMarketOrder(sellOrder)
 	fmt.Printf("Matches: %v\n", matches)
 
 	assert.Equal(t, len(matches), 2)
@@ -150,7 +150,7 @@ func TestPlaceSellMarketOrderWithDuplicates(t *testing.T) {
 
 	// selling 5 BTC
 	sellOrder := NewMarketOrder(5, false)
-	matches := ob.PlaceMarketOrder(sellOrder.TotalPrice(), sellOrder)
+	matches := ob.PlaceMarketOrder(sellOrder)
 	fmt.Printf("Matches: %v\n", matches)
 
 	assert.Equal(t, len(matches), 2)
@@ -167,8 +167,10 @@ func TestCancelOrderFromOb(t *testing.T) {
 	ob := NewOrderBook()
 	o := NewOrder(3, true, 400)
 	ob.PlaceLimitOrder(o.Price, o)
-	ob.CancelOrder(o)
-
+	assert.Equal(t, o, ob.GetOrderById(o.ID.String()))
+	ob.CancelOrderById(o.ID.String())
 	assert.Equal(t, o.Limit.Orders.Size(), 0)
 	assert.Equal(t, ob.Bids.Size(), 0)
+	assert.Nil(t, ob.GetOrderById(o.ID.String()))
+
 }
