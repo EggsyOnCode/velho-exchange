@@ -2,17 +2,17 @@ package api
 
 import (
 	"github.com/EggsyOnCode/velho-exchange/api/handlers"
+	"github.com/EggsyOnCode/velho-exchange/core"
 	"github.com/labstack/echo"
 )
 
 type Server struct {
 	echo     *echo.Echo
-	exchange *handlers.Exchange
+	exchange *core.Exchange
 }
 
-func NewServer() *Server {
+func NewServer(exchange *core.Exchange) *Server {
 	e := echo.New()
-	exchange := handlers.NewExchange()
 	server := &Server{
 		echo:     e,
 		exchange: exchange,
@@ -23,9 +23,15 @@ func NewServer() *Server {
 }
 
 func (s *Server) registerRoutes() {
-	s.echo.POST("/order", s.exchange.HandlePlaceOrder)
-	s.echo.GET("/orderbook", s.exchange.HandleGetOrderBook)
-	s.echo.DELETE("/order", s.exchange.HandleDeleteOrder)
+	s.echo.POST("/order", func(ctx echo.Context) error {
+		return handlers.HandlePlaceOrder(ctx, s.exchange)
+	})
+	s.echo.GET("/orderbook", func(ctx echo.Context) error {
+		return handlers.HandleGetOrderBook(ctx, s.exchange)
+	})
+	s.echo.DELETE("/order", func(ctx echo.Context) error {
+		return handlers.HandleDeleteOrder(ctx, s.exchange)
+	})
 }
 
 func (s *Server) Start(addr string) {

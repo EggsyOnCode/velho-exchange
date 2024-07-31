@@ -18,6 +18,7 @@ type Match struct {
 
 type Order struct {
 	ID        uuid.UUID
+	UserID    string
 	Size      int64
 	Timestamp int64
 	Price     float64
@@ -26,13 +27,14 @@ type Order struct {
 	Limit *Limit
 }
 
-func NewOrder(size int64, bid bool, price float64) *Order {
+func NewOrder(size int64, bid bool, price float64, userId string) *Order {
 	return &Order{
 		ID:        uuid.New(),
 		Size:      size,
 		Timestamp: time.Now().UnixNano(),
 		Bid:       bid,
 		Price:     price,
+		UserID:    userId,
 	}
 }
 
@@ -86,6 +88,7 @@ type OrderBook struct {
 
 	totalBidVolume float64
 	totalAskVolume float64
+	Exchange       *Exchange
 }
 
 func NewOrderBook() *OrderBook {
@@ -98,6 +101,10 @@ func NewOrderBook() *OrderBook {
 		BidsMap:   make(map[float64]*Limit),
 		OrdersMap: make(map[uuid.UUID]*Order),
 	}
+}
+
+func (ob *OrderBook) SetExchange(e *Exchange) {
+	ob.Exchange = e
 }
 
 func (l *Limit) AddOrder(o *Order) {

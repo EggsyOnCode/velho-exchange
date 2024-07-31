@@ -9,38 +9,18 @@ import (
 )
 
 type OrderType string
-type Market string
 
 const (
 	LimitOrder  OrderType = "LIMIT"
 	MarketOrder OrderType = "MARKET"
 )
 
-const (
-	BTC Market = "BTC"
-	ETH Market = "ETH"
-)
-
-type Exchange struct {
-	OrderBook map[Market]*core.OrderBook
-}
-
-func NewExchange() *Exchange {
-	orderbooks := make(map[Market]*core.OrderBook)
-	orderbooks[BTC] = core.NewOrderBook()
-	orderbooks[ETH] = core.NewOrderBook()
-
-	return &Exchange{
-		OrderBook: orderbooks,
-	}
-}
-
 type PlaceOrderRequest struct {
-	OrderType OrderType `json:"order_type"`
-	Price     float64   `json:"price"`
-	Size      int64     `json:"size"`
-	Bid       bool      `json:"bid"`
-	Market    Market    `json:"market"`
+	OrderType OrderType   `json:"order_type"`
+	Price     float64     `json:"price"`
+	Size      int64       `json:"size"`
+	Bid       bool        `json:"bid"`
+	Market    core.Market `json:"market"`
 }
 
 type Order struct {
@@ -49,6 +29,7 @@ type Order struct {
 	Timestamp int64
 	Price     float64
 	Bid       bool
+	UserId    string
 }
 
 type OrderBookResponse struct {
@@ -58,15 +39,16 @@ type OrderBookResponse struct {
 	Bids           []*Order `json:"bids"`
 }
 
-func (e *Exchange) HandlePlaceOrder(ctx echo.Context) error {
+func HandlePlaceOrder(ctx echo.Context, e *core.Exchange) error {
 	var placeOrder PlaceOrderRequest
+	userId := ctx.QueryParam("user")
 
 	if err := json.NewDecoder(ctx.Request().Body).Decode(&placeOrder); err != nil {
 		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
 	}
 
 	ob := e.OrderBook[placeOrder.Market]
-	order := core.NewOrder(placeOrder.Size, placeOrder.Bid, placeOrder.Price)
+	order := core.NewOrder(placeOrder.Size, placeOrder.Bid, placeOrder.Price, userId)
 	if placeOrder.OrderType == LimitOrder {
 		ob.PlaceLimitOrder(placeOrder.Price, order)
 		return ctx.JSON(http.StatusOK, map[string]string{"status": "success", "id": order.ID.String()})
@@ -78,9 +60,9 @@ func (e *Exchange) HandlePlaceOrder(ctx echo.Context) error {
 	return nil
 }
 
-func (e *Exchange) HandleGetOrderBook(ctx echo.Context) error {
+func HandleGetOrderBook(ctx echo.Context, e *core.Exchange) error {
 	market := ctx.QueryParam("market")
-	ob := e.OrderBook[Market(market)]
+	ob := e.OrderBook[core.Market(market)]
 
 	asks := make([]*Order, 0)
 	bids := make([]*Order, 0)
@@ -114,10 +96,10 @@ func (e *Exchange) HandleGetOrderBook(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, OrderBookResponse{Asks: asks, Bids: bids, TotalAskVolume: ob.TotalAskVolume(), TotalBidVolume: ob.TotalBidVolume()})
 }
 
-func (e *Exchange) HandleDeleteOrder(ctx echo.Context) error {
+func HandleDeleteOrder(ctx echo.Context, e *core.Exchange) error {
 	id := ctx.QueryParam("id")
 	market := ctx.QueryParam("market")
-	ob := e.OrderBook[Market(market)]
+	ob := e.OrderBook[core.Market(market)]
 
 	ob.CancelOrderById(id)
 	return ctx.JSON(http.StatusOK, map[string]string{"status": "success"})
