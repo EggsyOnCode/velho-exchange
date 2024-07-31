@@ -3,6 +3,7 @@ package internals
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"fmt"
 	"log"
 	"math/big"
@@ -14,8 +15,18 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+// Generate a new ECDSA private key
+func GenerateNewPrivateKey() *ecdsa.PrivateKey {
+	privKey, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
+	if err != nil {
+		log.Fatalf("Error generating new private key: %v", err)
+	}
+	return privKey
+}
+
 func GetAddress(privateKey *ecdsa.PrivateKey) common.Address {
-	return crypto.PubkeyToAddress(privateKey.PublicKey)
+	addr := crypto.PubkeyToAddress(privateKey.PublicKey)
+	return addr
 }
 
 func WeiToEther(wei *big.Int) *big.Float {
@@ -35,8 +46,29 @@ func EtherToWei(ether *big.Float) *big.Int {
 	return weiInt
 }
 
+func NewEthClient() (*ethclient.Client, error) {
+	client, err := ethclient.Dial("http://localhost:8545")
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+func GetGasPrice() (float64, error) {
+	client, _ := NewEthClient()
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		return 0.0, err
+	}
+
+	val, _ := gasPrice.Float64()
+	return val / 1e18, nil
+}
+
 // value will be sent in Wei
-func TransferETH(from *ecdsa.PrivateKey, to common.Address, valueInETH float64, client *ethclient.Client) error {
+func TransferETH(from *ecdsa.PrivateKey, to common.Address, valueInETH float64) error {
+	client, _ := NewEthClient()
 	fromAddr := GetAddress(from)
 	nonce, err := client.PendingNonceAt(context.Background(), fromAddr)
 	if err != nil {
@@ -68,9 +100,16 @@ func TransferETH(from *ecdsa.PrivateKey, to common.Address, valueInETH float64, 
 	err = client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
 		return err
-		log.Fatal(err)
 	}
 
-	fmt.Printf("tx sent: %s", signedTx.Hash().Hex())
+	fmt.Printf("tx sent: %s \n value was : %v \n", signedTx.Hash().Hex(), wei)
 	return nil
+}
+
+func GetBalance(addr common.Address) float64 {
+	client, _ := NewEthClient()
+	bal, _ := client.BalanceAt(context.Background(), addr, nil)
+
+	ans, _ := WeiToEther(bal).Float64()
+	return ans
 }

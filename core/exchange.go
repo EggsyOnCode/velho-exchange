@@ -5,7 +5,6 @@ import (
 
 	"github.com/EggsyOnCode/velho-exchange/auth"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/zyedidia/generic/bimap"
 )
 
 type (
@@ -17,24 +16,29 @@ const (
 	ETH Market = "ETH"
 )
 
-const DUMMY_PV = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+const DUMMY_PV = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
 type Exchange struct {
 	PrivateKey *ecdsa.PrivateKey
 	OrderBook  map[Market]*OrderBook
-	Users      bimap.Bimap[string, *auth.User]
+	Users      map[string]*auth.User
+	UsdPool    float64
 }
 
 func NewExchange() *Exchange {
 	orderbooks := make(map[Market]*OrderBook)
-	orderbooks[BTC] = NewOrderBook()
-	orderbooks[ETH] = NewOrderBook()
+	orderbooks[BTC] = NewOrderBook(BTC)
+	orderbooks[ETH] = NewOrderBook(ETH)
+
+	// priv
 
 	pv, _ := crypto.HexToECDSA(DUMMY_PV)
 
 	ex := &Exchange{
 		PrivateKey: pv,
 		OrderBook:  orderbooks,
+		UsdPool:    0,
+		Users:      make(map[string]*auth.User),
 	}
 
 	orderbooks[BTC].SetExchange(ex)
@@ -45,5 +49,5 @@ func NewExchange() *Exchange {
 }
 
 func (ex *Exchange) AddUser(user *auth.User) {
-	ex.Users.Add(user.ID.String(), user)
+	ex.Users[user.ID.String()] = user
 }

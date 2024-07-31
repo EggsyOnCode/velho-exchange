@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EggsyOnCode/velho-exchange/internals"
 	"github.com/google/uuid"
 	g "github.com/zyedidia/generic"
 	"github.com/zyedidia/generic/avl"
@@ -38,11 +39,12 @@ func NewOrder(size int64, bid bool, price float64, userId string) *Order {
 	}
 }
 
-func NewMarketOrder(size int64, bid bool) *Order {
+func NewMarketOrder(size int64, bid bool, userID string) *Order {
 	return &Order{
 		Size:      size,
 		Timestamp: time.Now().UnixNano(),
 		Bid:       bid,
+		UserID:    userID,
 	}
 }
 
@@ -89,9 +91,10 @@ type OrderBook struct {
 	totalBidVolume float64
 	totalAskVolume float64
 	Exchange       *Exchange
+	TokenId        Market
 }
 
-func NewOrderBook() *OrderBook {
+func NewOrderBook(tokenID Market) *OrderBook {
 	return &OrderBook{
 		// asks are sorted in ascending order : lowest ask first
 		Asks: avl.New[float64, *Limit](g.Less[float64]),
@@ -100,6 +103,7 @@ func NewOrderBook() *OrderBook {
 		AsksMap:   make(map[float64]*Limit),
 		BidsMap:   make(map[float64]*Limit),
 		OrdersMap: make(map[uuid.UUID]*Order),
+		TokenId:   tokenID,
 	}
 }
 
@@ -232,6 +236,9 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
 			ob.totalBidVolume += o.TotalPrice()
+
+			// tranferring usd to the exchange
+			ob.TransferUSD(o.UserID, o.TotalPrice(), true)
 		} else {
 			limit = NewLimit(price)
 			ob.BidsMap[price] = limit
@@ -240,7 +247,11 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			o.Limit = limit
 			ob.Bids.Put(price, limit)
 			ob.totalBidVolume += o.TotalPrice()
+
+			// transfering usd to the exchange
+			ob.TransferUSD(o.UserID, o.TotalPrice(), true)
 		}
+
 	} else {
 		if l, ok := ob.AsksMap[price]; ok {
 			limit = l
@@ -248,6 +259,10 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
 			ob.totalAskVolume += o.TotalPrice()
+
+			// transfer tokens to the exchange
+			ob.TransferTokens(o.UserID, ob.TokenId, float64(o.Size), true)
+
 		} else {
 			limit = NewLimit(price)
 			ob.AsksMap[price] = limit
@@ -256,6 +271,9 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			o.Limit = limit
 			ob.Asks.Put(price, limit)
 			ob.totalAskVolume += o.TotalPrice()
+
+			// transfer tokens to the exchange
+			ob.TransferTokens(o.UserID, ob.TokenId, float64(o.Size), true)
 		}
 	}
 
@@ -265,6 +283,10 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 	var matches []Match
 
 	if o.Bid {
+		// buying tokens in return for USD (for now)
+
+		ob.TransferUSD(o.UserID, o.TotalPrice(), true)
+
 		if o.TotalPrice() > ob.totalAskVolume {
 			// market order can't be filled
 			panic(fmt.Errorf("market order can't be filled, not enough asks, current totalAskVolume: %f, order.TotalPrice: %f", ob.totalAskVolume, o.TotalPrice()))
@@ -292,12 +314,17 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 				stop = true
 			}
 		})
+
 	} else {
+
+		// user is selling tokens in return for USD from exchange
 
 		if o.TotalPrice() > ob.totalBidVolume {
 			// market order can't be filled
 			panic(fmt.Errorf("market order can't be consumed, not enough bids, current totalBidVolume: %f, order.TotalPrice: %f", ob.totalBidVolume, o.TotalPrice()))
 		}
+
+		ob.TransferTokens(o.UserID, ob.TokenId, float64(o.Size), true)
 
 		stop := false
 		ob.Bids.Each(func(key float64, l *Limit) {
@@ -321,6 +348,8 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 
 		})
 	}
+
+	ob.BalanceOrderBookForMarketOrder(o, matches)
 
 	return matches
 }
@@ -362,4 +391,55 @@ func (ob *OrderBook) CancelOrderById(id string) {
 	}
 
 	delete(ob.OrdersMap, orderID)
+}
+
+// userID: user who is transferring  the tokens or to whom the tokens are being transferred
+func (ob *OrderBook) TransferTokens(userId string, token Market, tokenCount float64, toExchange bool) {
+	// transfer tokens to/from the exchange
+	switch token {
+	case BTC:
+		// Add BTC transfer logic here if needed
+	case ETH:
+		pvUser := ob.Exchange.Users[userId]
+		exAddr := internals.GetAddress(ob.Exchange.PrivateKey)
+		if toExchange {
+			internals.TransferETH(pvUser.PrivateKey, exAddr, tokenCount)
+		} else {
+			fmt.Println("hoorah")
+			pubKeyUser := internals.GetAddress(pvUser.PrivateKey)
+			internals.TransferETH(ob.Exchange.PrivateKey, pubKeyUser, tokenCount)
+		}
+	}
+}
+
+func (ob *OrderBook) TransferUSD(userID string, usd float64, toExchange bool) {
+	user := ob.Exchange.Users[userID]
+	if toExchange {
+		user.USD -= usd
+		ob.Exchange.UsdPool += usd
+	} else {
+		user.USD += usd
+		ob.Exchange.UsdPool -= usd
+	}
+}
+
+// iterates over matches and transfers tokens or/and USD depending on the type of market order
+func (ob *OrderBook) BalanceOrderBookForMarketOrder(o *Order, matches []Match) {
+	for _, m := range matches {
+		if o.Bid {
+			// buying tokens in return for USD (for now)
+			ob.TransferTokens(o.UserID, ob.TokenId, m.SizeFilled, false)
+			// the user who placed the ask (who wanna sell their ETH for USD) will receive the USD
+			ob.TransferUSD(m.Ask.UserID, m.Price, true)
+		} else {
+			// user is selling tokens in return for USD from exchange
+			ob.TransferUSD(o.UserID, m.Price, false)
+			// the user who placed the bid will receive the tokens
+			fmt.Printf("User ID: %s\n", m.Bid.UserID)
+			userId := m.Bid.UserID
+
+			// transfer tokens to the bid orders (who supplied ETH)
+			ob.TransferTokens(userId, ob.TokenId, m.SizeFilled, false)
+		}
+	}
 }
