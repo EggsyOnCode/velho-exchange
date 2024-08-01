@@ -39,6 +39,14 @@ func (s *Server) registerRoutes() {
 	s.echo.GET("/user/:id", func(ctx echo.Context) error {
 		return handlers.HandleGetUser(ctx, s.exchange)
 	})
+
+	s.echo.GET("/book/bid", func(ctx echo.Context) error {
+		return handlers.HandleGetBestBidPrice(ctx, s.exchange)
+	})
+
+	s.echo.GET("/book/ask", func(ctx echo.Context) error {
+		return handlers.HandleGetBestAskPrice(ctx, s.exchange)
+	})
 }
 
 func (s *Server) Start(addr string) {

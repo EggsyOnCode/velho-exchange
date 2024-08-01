@@ -452,11 +452,51 @@ func (ob *OrderBook) BalanceOrderBookForMarketOrder(o *Order, matches []Match) {
 			// user is selling tokens in return for USD from exchange
 			ob.TransferUSD(o.UserID, m.Price, false)
 			// the user who placed the bid will receive the tokens
-			fmt.Printf("User ID: %s\n", m.Bid.UserID)
 			userId := m.Bid.UserID
 
 			// transfer tokens to the bid orders (who supplied ETH)
 			ob.TransferTokens(userId, ob.TokenId, m.SizeFilled, false)
 		}
 	}
+}
+
+// returns highest bid price
+func (ob *OrderBook) GetBestBidPrice() float64 {
+	if ob.Bids.Size() == 0 {
+		return 0
+	}
+
+	counter := 0
+	var requiredLimit *Limit
+
+	ob.Bids.Each(func(key float64, val *Limit) {
+		if counter > 0 {
+			return
+		}
+		requiredLimit = val
+		counter++
+	})
+
+	return requiredLimit.Price
+
+}
+
+// returns lowest ask price
+func (ob *OrderBook) GetBestAskPrice() float64 {
+	if ob.Bids.Size() == 0 {
+		return 0
+	}
+
+	counter := 0
+	var requiredLimit *Limit
+
+	ob.Asks.Each(func(key float64, val *Limit) {
+		if counter > 0 {
+			return
+		}
+		requiredLimit = val
+		counter++
+	})
+
+	return requiredLimit.Price
 }

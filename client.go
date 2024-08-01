@@ -151,6 +151,85 @@ func (c *Client) RegisterUser(privKey string, usd float64) string {
 	return ""
 }
 
+func (c *Client) GetBestAskPrice(market string) float64 {
+	endpoint := Endpoint + "/book/ask?market=" + market
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		log.Fatalf("client: error creating http request: %s\n", err)
+	}
+
+	res, err := c.client.Do(req)
+	if err != nil {
+		log.Fatalf("client: error making http request: %s\n", err)
+	}
+
+	if res.StatusCode == http.StatusOK {
+		// Decode response body
+		var response map[string]float64
+		bodyBytes, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Fatalf("client: error reading response body: %s\n", err)
+		}
+
+		err = json.Unmarshal(bodyBytes, &response)
+		if err != nil {
+			log.Fatalf("client: error unmarshaling response body: %s\n", err)
+		}
+
+		if price, ok := response["price"]; ok {
+			log.Printf("client: best ask price for market %s: %f\n", market, price)
+			return price
+		}
+
+		log.Println("client: best ask price not found in response")
+	} else {
+		log.Printf("client: failed to get best ask price, status code: %d\n", res.StatusCode)
+	}
+
+	return 0
+}
+
+func (c *Client) GetBestBidPrice(market string) float64 {
+	endpoint := Endpoint + "/book/bid?market=" + market
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		log.Fatalf("client: error creating http request: %s\n", err)
+	}
+
+	res, err := c.client.Do(req)
+	if err != nil {
+		log.Fatalf("client: error making http request: %s\n", err)
+	}
+
+	if res.StatusCode == http.StatusOK {
+		// Decode response body
+		var response map[string]float64
+		bodyBytes, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Fatalf("client: error reading response body: %s\n", err)
+		}
+
+		err = json.Unmarshal(bodyBytes, &response)
+		if err != nil {
+			log.Fatalf("client: error unmarshaling response body: %s\n", err)
+		}
+
+		if price, ok := response["price"]; ok {
+			log.Printf("client: best ask price for market %s: %f\n", market, price)
+			return price
+		}
+
+		log.Println("client: best ask price not found in response")
+	} else {
+		log.Printf("client: failed to get best ask price, status code: %d\n", res.StatusCode)
+	}
+
+	return 0
+}
+
+
+
+
 func calculateAvgMarketOrderPrice(matches []interface{}) float64 {
 	var total float64
 	for _, m := range matches {
@@ -159,3 +238,5 @@ func calculateAvgMarketOrderPrice(matches []interface{}) float64 {
 	}
 	return total / float64(len(matches))
 }
+
+

@@ -162,3 +162,20 @@ func HandleGetUser(ctx echo.Context, e *core.Exchange) error {
 
 	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "user": user})
 }
+
+func HandleGetBestBidPrice(ctx echo.Context, e *core.Exchange) error {
+	market := ctx.QueryParam("market")
+	ob := e.OrderBook[core.Market(market)]
+	price := ob.GetBestBidPrice()
+
+	return ctx.JSON(http.StatusOK, map[string]float64{"price": price})
+}
+
+
+func HandleGetBestAskPrice(ctx echo.Context, e *core.Exchange) error {
+	market := ctx.QueryParam("market")
+	ob := e.OrderBook[core.Market(market)]
+	price := ob.GetBestAskPrice()
+
+	return ctx.JSON(http.StatusOK, map[string]float64{"price": price})
+}
