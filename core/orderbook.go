@@ -65,7 +65,8 @@ func (o *Order) IsFilled() bool {
 type Limit struct {
 	Price float64
 	// sorted by timestamps
-	Orders      *avl.Tree[int64, *Order]
+	Orders *avl.Tree[int64, *Order]
+	// total volume of tokens available for trade (not tokenAmt * Price)
 	TotalVolume float64
 }
 
@@ -113,14 +114,14 @@ func (ob *OrderBook) SetExchange(e *Exchange) {
 
 func (l *Limit) AddOrder(o *Order) {
 	l.Orders.Put(o.Timestamp, o)
-	l.TotalVolume += float64(o.Size * int64(o.Price))
+	l.TotalVolume += float64(o.Size)
 }
 
 // cancel / clear order
 func (l *Limit) RemoveOrders(orders []*Order) bool {
 	for _, o := range orders {
 		l.Orders.Remove(o.Timestamp)
-		l.TotalVolume -= float64(o.Size * int64(o.Price))
+		l.TotalVolume -= float64(o.Size)
 	}
 
 	return l.Orders.Size() == 0
@@ -142,7 +143,7 @@ func (l *Limit) Fill(o *Order) ([]Match, bool) {
 		match := l.fillOrder(o, order)
 		matches = append(matches, match)
 
-		l.TotalVolume -= match.Price
+		l.TotalVolume -= match.SizeFilled
 
 		if order.IsFilled() {
 			filledOrders = append(filledOrders, order)
@@ -235,7 +236,7 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			l.AddOrder(o)
 			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
-			ob.totalBidVolume += o.TotalPrice()
+			ob.totalBidVolume += float64(o.Size)
 
 			// tranferring usd to the exchange
 			ob.TransferUSD(o.UserID, o.TotalPrice(), true)
@@ -246,7 +247,7 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
 			ob.Bids.Put(price, limit)
-			ob.totalBidVolume += o.TotalPrice()
+			ob.totalBidVolume += float64(o.Size)
 
 			// transfering usd to the exchange
 			ob.TransferUSD(o.UserID, o.TotalPrice(), true)
@@ -258,7 +259,7 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			l.AddOrder(o)
 			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
-			ob.totalAskVolume += o.TotalPrice()
+			ob.totalAskVolume += float64(o.Size)
 
 			// transfer tokens to the exchange
 			ob.TransferTokens(o.UserID, ob.TokenId, float64(o.Size), true)
@@ -270,7 +271,7 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
 			ob.Asks.Put(price, limit)
-			ob.totalAskVolume += o.TotalPrice()
+			ob.totalAskVolume += float64(o.Size)
 
 			// transfer tokens to the exchange
 			ob.TransferTokens(o.UserID, ob.TokenId, float64(o.Size), true)
@@ -285,9 +286,7 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 	if o.Bid {
 		// buying tokens in return for USD (for now)
 
-		ob.TransferUSD(o.UserID, o.TotalPrice(), true)
-
-		if o.TotalPrice() > ob.totalAskVolume {
+		if float64(o.Size) > ob.totalAskVolume {
 			// market order can't be filled
 			panic(fmt.Errorf("market order can't be filled, not enough asks, current totalAskVolume: %f, order.TotalPrice: %f", ob.totalAskVolume, o.TotalPrice()))
 		}
@@ -307,7 +306,7 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 			}
 
 			for _, m := range limitMatches {
-				ob.totalAskVolume -= m.Price
+				ob.totalAskVolume -= m.SizeFilled
 			}
 
 			if o.IsFilled() {
@@ -319,7 +318,7 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 
 		// user is selling tokens in return for USD from exchange
 
-		if o.TotalPrice() > ob.totalBidVolume {
+		if float64(o.Size) > ob.totalBidVolume {
 			// market order can't be filled
 			panic(fmt.Errorf("market order can't be consumed, not enough bids, current totalBidVolume: %f, order.TotalPrice: %f", ob.totalBidVolume, o.TotalPrice()))
 		}
@@ -343,7 +342,7 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 				ob.DeleteLimit(key, true)
 			}
 			for _, m := range limitMatches {
-				ob.totalBidVolume -= m.Price
+				ob.totalBidVolume -= m.SizeFilled
 			}
 
 		})
@@ -412,6 +411,14 @@ func (ob *OrderBook) TransferTokens(userId string, token Market, tokenCount floa
 	}
 }
 
+func (ob *OrderBook) TransferUSDBetweenUsers(from, to string, usd float64) {
+	fromUser := ob.Exchange.Users[from]
+	toUser := ob.Exchange.Users[to]
+
+	fromUser.USD -= usd
+	toUser.USD += usd
+}
+
 func (ob *OrderBook) TransferUSD(userID string, usd float64, toExchange bool) {
 	user := ob.Exchange.Users[userID]
 	if toExchange {
@@ -430,7 +437,8 @@ func (ob *OrderBook) BalanceOrderBookForMarketOrder(o *Order, matches []Match) {
 			// buying tokens in return for USD (for now)
 			ob.TransferTokens(o.UserID, ob.TokenId, m.SizeFilled, false)
 			// the user who placed the ask (who wanna sell their ETH for USD) will receive the USD
-			ob.TransferUSD(m.Ask.UserID, m.Price, true)
+			// transferring USD from the buyer to the seller
+			ob.TransferUSDBetweenUsers(o.UserID, m.Ask.UserID, m.Price)
 		} else {
 			// user is selling tokens in return for USD from exchange
 			ob.TransferUSD(o.UserID, m.Price, false)
