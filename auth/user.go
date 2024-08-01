@@ -18,6 +18,9 @@ type User struct {
 }
 
 func NewUser(pk *ecdsa.PrivateKey, usd float64) *User {
+	if pk == nil {
+		pk = internals.GenerateNewPrivateKey()
+	}
 	return &User{
 		ID:         uuid.New(),
 		USD:        usd,
@@ -48,7 +51,6 @@ func GenerateUsers() []*User {
 		users = append(users, user)
 
 	}
-
 
 	return users
 }

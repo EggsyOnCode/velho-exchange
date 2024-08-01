@@ -24,6 +24,15 @@ func GenerateNewPrivateKey() *ecdsa.PrivateKey {
 	return privKey
 }
 
+func GetPrivKeyFromHexString(key string) (*ecdsa.PrivateKey, error) {
+	privKey, err := crypto.HexToECDSA(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return privKey, nil
+}
+
 func GetAddress(privateKey *ecdsa.PrivateKey) common.Address {
 	addr := crypto.PubkeyToAddress(privateKey.PublicKey)
 	return addr

@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
+	"github.com/EggsyOnCode/velho-exchange/auth"
 	"github.com/EggsyOnCode/velho-exchange/core"
+	"github.com/EggsyOnCode/velho-exchange/internals"
 	"github.com/labstack/echo"
 )
 
@@ -30,6 +34,11 @@ type Order struct {
 	Price     float64
 	Bid       bool
 	UserId    string
+}
+
+type User struct {
+	PrivateKey string  `json:"private_key"`
+	Usd        float64 `json:"usd"`
 }
 
 type OrderBookResponse struct {
@@ -103,4 +112,45 @@ func HandleDeleteOrder(ctx echo.Context, e *core.Exchange) error {
 
 	ob.CancelOrderById(id)
 	return ctx.JSON(http.StatusOK, map[string]string{"status": "success"})
+}
+
+func HandleUserRegistration(ctx echo.Context, e *core.Exchange) error {
+	userPk := ctx.QueryParam("private_key")
+	userBalance := ctx.QueryParam("usd")
+
+	balance, err := strconv.ParseFloat(userBalance, 64)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid balance"})
+	}
+
+	// Note : DB will handle if teh private key is already registered
+
+	var pk *ecdsa.PrivateKey
+
+	if userPk == "" {
+		pk = nil
+	} else {
+		pk, err = internals.GetPrivKeyFromHexString(userPk)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid private"})
+		}
+	}
+
+	user := auth.NewUser(pk, balance)
+
+	e.AddUser(user)
+
+	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "user": user.ID.String()})
+}
+
+func HandleGetUser(ctx echo.Context, e *core.Exchange) error {
+	userPk := ctx.Param("id")
+
+	if userPk == "" {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user id"})
+	}
+
+	user := e.Users[userPk]
+
+	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "user": user})
 }

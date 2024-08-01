@@ -32,6 +32,13 @@ func (s *Server) registerRoutes() {
 	s.echo.DELETE("/order", func(ctx echo.Context) error {
 		return handlers.HandleDeleteOrder(ctx, s.exchange)
 	})
+	s.echo.POST("/user", func(ctx echo.Context) error {
+		return handlers.HandleUserRegistration(ctx, s.exchange)
+	})
+
+	s.echo.GET("/user/:id", func(ctx echo.Context) error {
+		return handlers.HandleGetUser(ctx, s.exchange)
+	})
 }
 
 func (s *Server) Start(addr string) {
