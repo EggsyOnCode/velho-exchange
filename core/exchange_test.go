@@ -61,6 +61,7 @@ func TestExchange(t *testing.T) {
 
 	assert.InEpsilon(t, 9995.0-gasPrice, user2Bal, tolerance, "User balance should match expected value within tolerance")
 	assert.InEpsilon(t, 10000.0-gasPrice, exBal, tolerance, "Exchange balance should match expected value within tolerance")
+
 }
 
 func TestExchangeSellLimitBuyMarket(t *testing.T) {
@@ -95,16 +96,15 @@ func TestExchangeSellLimitBuyMarket(t *testing.T) {
 	// Check that we have two matches
 	assert.Equal(t, len(matches), 2)
 
-
 	gasPrice, _ := internals.GetGasPrice()
 
 	// Calculate expected balances after the transactions
-	expectedUser0USD := 100_000 + 400*3           
-	expectedUser0ETH := float64(10000 - 3)-gasPrice        
-	expectedUser1USD := 100_000 + 800*2           
+	expectedUser0USD := 100_000 + 400*3
+	expectedUser0ETH := float64(10000-3) - gasPrice
+	expectedUser1USD := 100_000 + 800*2
 	// it will be 10000 - 3 because when submitting a limit order, the users's entire order size is tranferred to exchange (here 3)
-	expectedUser1ETH := float64(10000 - 3)-gasPrice                         
-	expectedUser2USD := 100_000 - (400*3 + 800*2) 
+	expectedUser1ETH := float64(10000-3) - gasPrice
+	expectedUser2USD := 100_000 - (400*3 + 800*2)
 
 	assert.Equal(t, users[0].USD, float64(expectedUser0USD))
 	assert.Equal(t, users[1].USD, float64(expectedUser1USD))
@@ -116,10 +116,19 @@ func TestExchangeSellLimitBuyMarket(t *testing.T) {
 	user1Bal := internals.GetBalance(internals.GetAddress(users[1].PrivateKey))
 	user2Bal := internals.GetBalance(internals.GetAddress(users[2].PrivateKey))
 
-
 	tolerance := 0.0005
 
 	assert.InEpsilon(t, user0Bal, expectedUser0ETH, tolerance, "User balance should match expected value within tolerance")
 	assert.InEpsilon(t, user1Bal, expectedUser1ETH, tolerance, "User balance should match expected value within tolerance")
 	assert.InEpsilon(t, 10005-gasPrice, user2Bal, tolerance, "User balance should match expected value within tolerance")
+
+	//  testing cancelling orders
+
+	ob.CancelOrderById(sellOrder1.ID.String())
+
+
+	uptedUser1Eth := float64(10000-2) - gasPrice
+	
+	user1BalUpdated := internals.GetBalance(internals.GetAddress(users[1].PrivateKey))
+	assert.InEpsilon(t, user1BalUpdated, uptedUser1Eth, tolerance, "User balance should match expected value within tolerance")
 }

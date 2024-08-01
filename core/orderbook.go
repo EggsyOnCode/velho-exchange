@@ -367,8 +367,9 @@ func (ob *OrderBook) GetOrderById(id string) *Order {
 	return o
 }
 
-func (ob *OrderBook) CancelOrderById(id string) {
-	orderID := uuid.MustParse(id)
+
+func (ob *OrderBook) CancelOrderById(orderId string) {
+	orderID := uuid.MustParse(orderId)
 	order, exists := ob.OrdersMap[orderID]
 	if !exists {
 		fmt.Printf("Order with ID %s not found\n", orderID)
@@ -383,6 +384,18 @@ func (ob *OrderBook) CancelOrderById(id string) {
 	}
 
 	if limit != nil {
+		
+		// we only trasnfer tokens if the limit order is an ask
+		// in case of a bid, the tokens are already in the user's custody
+		// and usd are transferred p2p during matching
+		if !order.Bid {
+			// if the order is an ask, then even if it has already been matched 
+			// and has some tokens consumed, the remaining tokens will be left in teh CEX's custody
+			// we will trasnfer those tokens
+			ob.TransferTokens(order.UserID, ob.TokenId, float64(order.Size), false)
+		}
+
+
 		flag := limit.RemoveOrders([]*Order{order})
 		if flag {
 			ob.DeleteLimit(limit.Price, order.Bid)
