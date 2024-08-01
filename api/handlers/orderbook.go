@@ -3,8 +3,8 @@ package handlers
 import (
 	"crypto/ecdsa"
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/EggsyOnCode/velho-exchange/auth"
 	"github.com/EggsyOnCode/velho-exchange/core"
@@ -33,7 +33,7 @@ type Order struct {
 	Timestamp int64
 	Price     float64
 	Bid       bool
-	UserId    string
+	UserID    string
 }
 
 type User struct {
@@ -84,6 +84,7 @@ func HandleGetOrderBook(ctx echo.Context, e *core.Exchange) error {
 				Price:     val.Price,
 				Bid:       val.Bid,
 				ID:        val.ID.String(),
+				UserID:    val.UserID,
 			}
 			asks = append(asks, order)
 		})
@@ -97,6 +98,7 @@ func HandleGetOrderBook(ctx echo.Context, e *core.Exchange) error {
 				Price:     val.Price,
 				Bid:       val.Bid,
 				ID:        val.ID.String(),
+				UserID:    val.UserID,
 			}
 			bids = append(bids, order)
 		})
@@ -114,31 +116,37 @@ func HandleDeleteOrder(ctx echo.Context, e *core.Exchange) error {
 	return ctx.JSON(http.StatusOK, map[string]string{"status": "success"})
 }
 
-func HandleUserRegistration(ctx echo.Context, e *core.Exchange) error {
-	userPk := ctx.QueryParam("private_key")
-	userBalance := ctx.QueryParam("usd")
+type UserRegistrationRequest struct {
+	PrivateKey string  `json:"private_key"`
+	Usd        float64 `json:"usd"`
+}
 
-	balance, err := strconv.ParseFloat(userBalance, 64)
-	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid balance"})
+func HandleUserRegistration(ctx echo.Context, e *core.Exchange) error {
+	var req UserRegistrationRequest
+	if err := ctx.Bind(&req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
 	}
 
+	balance := req.Usd
+
 	// Note : DB will handle if teh private key is already registered
-
 	var pk *ecdsa.PrivateKey
+	var err error
 
-	if userPk == "" {
+	if req.PrivateKey == "" {
 		pk = nil
 	} else {
-		pk, err = internals.GetPrivKeyFromHexString(userPk)
+		pk, err = internals.GetPrivKeyFromHexString(req.PrivateKey)
 		if err != nil {
-			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid private"})
+			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid private key"})
 		}
 	}
 
 	user := auth.NewUser(pk, balance)
 
 	e.AddUser(user)
+
+	fmt.Printf("Registering user with balance: %f\n", e.Users[user.ID.String()].USD)
 
 	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "user": user.ID.String()})
 }

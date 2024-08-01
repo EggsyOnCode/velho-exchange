@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
-	"fmt"
 	"log"
 	"math/big"
 
@@ -111,7 +110,7 @@ func TransferETH(from *ecdsa.PrivateKey, to common.Address, valueInETH float64) 
 		return err
 	}
 
-	fmt.Printf("tx sent: %s \n value was : %v \n", signedTx.Hash().Hex(), wei)
+	// fmt.Printf("tx sent: %s \n value was : %v \n", signedTx.Hash().Hex(), wei)
 	return nil
 }
 

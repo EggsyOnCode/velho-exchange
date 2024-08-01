@@ -237,7 +237,6 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			ob.OrdersMap[o.ID] = o
 			o.Limit = limit
 			ob.totalBidVolume += float64(o.Size)
-
 			// tranferring usd to the exchange
 			ob.TransferUSD(o.UserID, o.TotalPrice(), true)
 		} else {
@@ -367,7 +366,6 @@ func (ob *OrderBook) GetOrderById(id string) *Order {
 	return o
 }
 
-
 func (ob *OrderBook) CancelOrderById(orderId string) {
 	orderID := uuid.MustParse(orderId)
 	order, exists := ob.OrdersMap[orderID]
@@ -384,17 +382,16 @@ func (ob *OrderBook) CancelOrderById(orderId string) {
 	}
 
 	if limit != nil {
-		
+
 		// we only trasnfer tokens if the limit order is an ask
 		// in case of a bid, the tokens are already in the user's custody
 		// and usd are transferred p2p during matching
 		if !order.Bid {
-			// if the order is an ask, then even if it has already been matched 
+			// if the order is an ask, then even if it has already been matched
 			// and has some tokens consumed, the remaining tokens will be left in teh CEX's custody
 			// we will trasnfer those tokens
 			ob.TransferTokens(order.UserID, ob.TokenId, float64(order.Size), false)
 		}
-
 
 		flag := limit.RemoveOrders([]*Order{order})
 		if flag {
@@ -417,7 +414,6 @@ func (ob *OrderBook) TransferTokens(userId string, token Market, tokenCount floa
 		if toExchange {
 			internals.TransferETH(pvUser.PrivateKey, exAddr, tokenCount)
 		} else {
-			fmt.Println("hoorah")
 			pubKeyUser := internals.GetAddress(pvUser.PrivateKey)
 			internals.TransferETH(ob.Exchange.PrivateKey, pubKeyUser, tokenCount)
 		}
