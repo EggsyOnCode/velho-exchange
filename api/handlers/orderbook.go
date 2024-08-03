@@ -72,7 +72,19 @@ func HandlePlaceOrder(ctx echo.Context, e *core.Exchange) error {
 		ob.PlaceLimitOrder(placeOrder.Price, order)
 		return ctx.JSON(http.StatusOK, map[string]string{"status": "success", "id": order.ID.String()})
 	} else if placeOrder.OrderType == MarketOrder {
+		currentBidVol := ob.TotalBidVolume()
+		currentAskVol := ob.TotalAskVolume()
+
+		if o.Bid && float64(o.Size) > currentAskVol {
+			return ctx.JSON(http.StatusExpectationFailed, map[string]string{"status": "false", "error": "insufficient volume"})
+		} else if !o.Bid && float64(o.Size) > currentBidVol {
+			return ctx.JSON(http.StatusExpectationFailed, map[string]string{"status": "false", "error": "insufficient volume"})
+		}
+
 		matches := ob.PlaceMarketOrder(order)
+		if len(matches) == 0 {
+			return ctx.JSON(http.StatusExpectationFailed, map[string]string{"status": "false", "matches": "no matches"})
+		}
 		return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "matches": matches})
 	}
 

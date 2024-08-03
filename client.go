@@ -10,6 +10,7 @@ import (
 
 	"github.com/EggsyOnCode/velho-exchange/api/handlers"
 	"github.com/EggsyOnCode/velho-exchange/core"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -85,12 +86,18 @@ func (c *Client) PlaceOrder(orderType string, price float64, size int64, bid boo
 			}
 		} else {
 			if matches, ok := response["matches"].([]interface{}); ok {
+				logrus.WithFields(logrus.Fields{
+					"matches": strconv.Itoa(len(matches)),
+				}).Info("market order SUCCESSFUL")
+
 				return strconv.Itoa(len(matches))
 			}
 		}
 
 	} else {
-		log.Printf("client: failed to place order, status code: %d\n", res.StatusCode)
+		logrus.WithFields(logrus.Fields{
+			"error": "not enough volume for market order ",
+		}).Info("market order failed")
 	}
 
 	return ""

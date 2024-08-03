@@ -565,7 +565,7 @@ func (ob *OrderBook) GetBestBidPrice() float64 {
 
 // returns lowest ask price
 func (ob *OrderBook) GetBestAskPrice() float64 {
-	if ob.Bids.Size() == 0 {
+	if ob.Asks.Size() == 0 {
 		return 0
 	}
 
