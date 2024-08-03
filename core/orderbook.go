@@ -2,11 +2,11 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/EggsyOnCode/velho-exchange/internals"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	g "github.com/zyedidia/generic"
 	"github.com/zyedidia/generic/avl"
 )
@@ -67,6 +67,13 @@ func (o *Order) String() string {
 	t := time.Unix(o.Timestamp, 0)
 	format := t.Format("2006-01-02 15:04:05")
 	return fmt.Sprintf("Order{ID: %s, UserID: %s, Size: %d, Timestamp: %s, Price: %f, Bid: %v}", o.ID, o.UserID, o.Size, format, o.Price, o.Bid)
+}
+
+func (o *Order) Type() string {
+	if o.Bid {
+		return "BID"
+	}
+	return "ASK"
 }
 
 func (o *Order) IsFilled() bool {
@@ -274,7 +281,6 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			// transfering usd to the exchange
 			ob.TransferUSD(o.UserID, o.TotalPrice(), true)
 
-			log.Printf("order added is %v\n", ob.OrdersMap[o.ID])
 		}
 
 	} else {
@@ -302,6 +308,16 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 		}
 	}
 
+	logrus.WithFields(
+		logrus.Fields{
+			"price":     price,
+			"size":      o.Size,
+			"type":      o.Type(),
+			"userId":    o.UserID,
+			"timestamp": o.Timestamp,
+		},
+	).Info("new limit Order")
+
 }
 
 func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
@@ -309,6 +325,16 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 
 	if o.Bid {
 		// buying tokens in return for USD (for now)
+
+		logrus.WithFields(
+			logrus.Fields{
+				"best ask price": ob.GetBestAskPrice(),
+				"size":           o.Size,
+				"type":           o.Type(),
+				"userId":         o.UserID,
+				"timestamp":      o.Timestamp,
+			},
+		).Info("new Market Order")
 
 		if float64(o.Size) > ob.totalAskVolume {
 			// market order can't be filled
@@ -343,6 +369,16 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 	} else {
 
 		// user is selling tokens in return for USD from exchange
+
+		logrus.WithFields(
+			logrus.Fields{
+				"best bid price": ob.GetBestBidPrice(),
+				"size":           o.Size,
+				"type":           o.Type(),
+				"userId":         o.UserID,
+				"timestamp":      o.Timestamp,
+			},
+		).Info("new Market Order")
 
 		if float64(o.Size) > ob.totalBidVolume {
 			// market order can't be filled
@@ -553,4 +589,12 @@ func (ob *OrderBook) GetTrades() []*Trade {
 		trades = append(trades, val)
 	})
 	return trades
+}
+
+func CalculateAvgMarketOrderPrice(matches []Match) float64 {
+	var total float64
+	for _, m := range matches {
+		total += m.Price / m.SizeFilled
+	}
+	return total / float64(len(matches))
 }

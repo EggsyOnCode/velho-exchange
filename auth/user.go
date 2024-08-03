@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 type User struct {
@@ -21,11 +22,20 @@ func NewUser(pk *ecdsa.PrivateKey, usd float64) *User {
 	if pk == nil {
 		pk = internals.GenerateNewPrivateKey()
 	}
-	return &User{
+
+	user := &User{
 		ID:         uuid.New(),
 		USD:        usd,
 		PrivateKey: pk,
 	}
+
+	logrus.WithFields(
+		logrus.Fields{
+			"id":      user.ID,
+			"address": internals.GetAddress(user.PrivateKey),
+		}).Info("New user created")
+
+	return user
 }
 
 func GenerateUsers() []*User {

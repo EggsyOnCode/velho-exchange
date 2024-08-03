@@ -3,7 +3,6 @@ package handlers
 import (
 	"crypto/ecdsa"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/EggsyOnCode/velho-exchange/auth"
@@ -160,8 +159,6 @@ func HandleUserRegistration(ctx echo.Context, e *core.Exchange) error {
 	user := auth.NewUser(pk, balance)
 
 	e.AddUser(user)
-
-	fmt.Printf("Registering user with balance: %f\n", e.Users[user.ID.String()].USD)
 
 	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "user": user.ID.String()})
 }

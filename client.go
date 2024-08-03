@@ -81,13 +81,10 @@ func (c *Client) PlaceOrder(orderType string, price float64, size int64, bid boo
 
 		if orderType == "LIMIT" {
 			if orderId, ok := response["id"].(string); ok {
-				log.Printf("new LIMIT order : bid %v , price %v , size %v , market %v \n", bid, price, size, market)
 				return orderId
 			}
 		} else {
 			if matches, ok := response["matches"].([]interface{}); ok {
-				avgPrice := calculateAvgMarketOrderPrice(matches)
-				log.Printf("new Market order : bid %v , size %v , matches %v , avg Price %v \n", bid, size, len(matches), avgPrice)
 				return strconv.Itoa(len(matches))
 			}
 		}
@@ -139,7 +136,6 @@ func (c *Client) RegisterUser(privKey string, usd float64) string {
 
 		// Extract user ID from response
 		if userID, ok := response["user"].(string); ok {
-			log.Printf("client: user registered successfully, ID: %s\n", userID)
 			return userID
 		}
 

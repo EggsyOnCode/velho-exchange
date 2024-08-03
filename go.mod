@@ -6,6 +6,7 @@ require (
 	github.com/ethereum/go-ethereum v1.14.7
 	github.com/google/uuid v1.6.0
 	github.com/labstack/echo v3.3.10+incompatible
+	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	github.com/zyedidia/generic v1.2.1
 )
