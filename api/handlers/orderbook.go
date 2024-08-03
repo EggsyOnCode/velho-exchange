@@ -32,6 +32,11 @@ type User struct {
 	Usd        float64 `json:"usd"`
 }
 
+type ExOrdersResponse struct {
+	Asks []*core.ExOrder
+	Bids []*core.ExOrder
+}
+
 type OrderBookResponse struct {
 	TotalAskVolume float64         `json:"total_ask_volume"`
 	TotalBidVolume float64         `json:"total_bid_volume"`
@@ -200,5 +205,15 @@ func HandleGetOrders(ctx echo.Context, e *core.Exchange) error {
 		return ctx.JSON(http.StatusExpectationFailed, map[string]string{"error": "Orders not found; they are either filled or non-existant"})
 	}
 
-	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "orders": orders})
+	var ordersRes ExOrdersResponse
+
+	for _, order := range orders {
+		if order.Bid {
+			ordersRes.Asks = append(ordersRes.Asks, order)
+		} else {
+			ordersRes.Bids = append(ordersRes.Bids, order)
+		}
+	}
+
+	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "orders": ordersRes})
 }

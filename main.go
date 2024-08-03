@@ -8,7 +8,7 @@ import (
 	"github.com/EggsyOnCode/velho-exchange/core"
 )
 
-var tick = time.Second * 3
+var tick = time.Second * 2
 
 func startServer() {
 	exchange := core.NewExchange()
@@ -17,14 +17,14 @@ func startServer() {
 }
 
 func marketMakerPlacer(client *Client) {
-	ticker := time.NewTicker(time.Second * 3)
+	ticker := time.NewTicker(time.Second * 5)
 	// Register a user
 	user := client.RegisterUser("dbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97", 1_000.0)
 
 	for {
 
-		client.PlaceOrder("MARKET", 10000.0, 10, false, "ETH", user)
-		client.PlaceOrder("MARKET", 8000.0, 6, true, "ETH", user)
+		client.PlaceOrder("MARKET", 5000.0, 100, false, "ETH", user)
+		client.PlaceOrder("MARKET", 5500.0, 60, true, "ETH", user)
 
 		<-ticker.C
 	}
@@ -46,10 +46,10 @@ func seedMarketMaker(client *Client) []string {
 	}
 
 	// Create two limit orders
-	client.PlaceOrder("LIMIT", 10000.0, 50, true, "ETH", userResponses[0])
-	client.PlaceOrder("LIMIT", 12000.0, 10, false, "ETH", userResponses[1])
-	client.PlaceOrder("LIMIT", 8000.0, 7, true, "ETH", userResponses[2])
-	client.PlaceOrder("LIMIT", 11500.0, 5, false, "ETH", userResponses[0])
+	client.PlaceOrder("LIMIT", 4000.0, 150, true, "ETH", userResponses[0])
+	client.PlaceOrder("LIMIT", 4500.0,100, false, "ETH", userResponses[1])
+	client.PlaceOrder("LIMIT", 4001, 70, true, "ETH", userResponses[2])
+	client.PlaceOrder("LIMIT", 4999.0, 50, false, "ETH", userResponses[0])
 
 	return userResponses
 
@@ -67,6 +67,8 @@ func createMarketMaker(client *Client) {
 
 	for {
 
+		orders := client.GetOrders(mmUserID)
+
 		bestBid := client.GetBestBidPrice("ETH")
 		bestAsk := client.GetBestAskPrice("ETH")
 		spread := bestAsk - bestBid
@@ -75,10 +77,14 @@ func createMarketMaker(client *Client) {
 		fmt.Printf("Best Ask: %f\n", bestAsk)
 		fmt.Printf("Spread: %f\n", spread)
 
-		// tightenting the spread
-		client.PlaceOrder("LIMIT", bestBid+straddle, 10, true, "ETH", mmUserID)
+		if len(orders.Orders.Bids) < 3 {
+			// tightenting the spread
+			client.PlaceOrder("LIMIT", bestBid+straddle, 10, true, "ETH", mmUserID)
+		}
 
-		client.PlaceOrder("LIMIT", bestAsk-straddle, 10, false, "ETH", mmUserID)
+		if len(orders.Orders.Asks) < 3 {
+			client.PlaceOrder("LIMIT", bestAsk-straddle, 10, false, "ETH", mmUserID)
+		}
 
 		bestBid1 := client.GetBestBidPrice("ETH")
 		bestAsk1 := client.GetBestAskPrice("ETH")
@@ -100,18 +106,12 @@ func main() {
 
 	client := NewClient()
 
-	users := seedMarketMaker(client)
+	seedMarketMaker(client)
 
-	mmUserID := client.RegisterUser("2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6", 1_000_000.0)
-	fmt.Printf("Market Maker User ID: %s\n", mmUserID)
+	// client.PlaceOrder("MARKET", 11500, 12, true, "ETH", mmUserID)
+	go createMarketMaker(client)
 
-	time.Sleep(3 * time.Second)
-	client.PlaceOrder("MARKET", 11500, 12, true, "ETH", mmUserID)
-	// go createMarketMaker(client)
-
-	client.GetOrders(users[0])
-
-	// marketMakerPlacer(client)
+	marketMakerPlacer(client)
 
 	// // Create a market order to buy a million ETH
 	// client.PlaceOrder("MARKET", 0, 50, false, "ETH", userResponses[2])

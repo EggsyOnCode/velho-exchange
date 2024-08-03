@@ -81,6 +81,8 @@ func (ex *Exchange) AddOrder(order *ExOrder) {
 
 }
 
+
+
 func (ex *Exchange) GetOrders(userId string) ([]*ExOrder, bool) {
 	var orders []*ExOrder
 	_, exists := ex.orders[userId]
@@ -94,6 +96,8 @@ func (ex *Exchange) GetOrders(userId string) ([]*ExOrder, bool) {
 			orders = append(orders, v)
 		})
 	}
+
+
 
 	return orders, exists
 }

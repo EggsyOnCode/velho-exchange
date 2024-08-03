@@ -299,7 +299,8 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 
 		if float64(o.Size) > ob.totalAskVolume {
 			// market order can't be filled
-			panic(fmt.Errorf("market order can't be filled, not enough asks, current totalAskVolume: %f, order.TotalPrice: %f", ob.totalAskVolume, o.TotalPrice()))
+			fmt.Errorf("market order can't be filled, not enough asks, current totalAskVolume: %f, order.TotalPrice: %f", ob.totalAskVolume, o.TotalPrice())
+			return nil
 		}
 
 		stop := false
@@ -332,7 +333,8 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 
 		if float64(o.Size) > ob.totalBidVolume {
 			// market order can't be filled
-			panic(fmt.Errorf("market order can't be consumed, not enough bids, current totalBidVolume: %f, order.TotalPrice: %f", ob.totalBidVolume, o.TotalPrice()))
+			fmt.Errorf("market order can't be consumed, not enough bids, current totalBidVolume: %f, order.TotalPrice: %f", ob.totalBidVolume, o.TotalPrice())
+			return nil
 		}
 
 		ob.TransferTokens(o.UserID, ob.TokenId, float64(o.Size), true)

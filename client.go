@@ -227,7 +227,18 @@ func (c *Client) GetBestBidPrice(market string) float64 {
 	return 0
 }
 
-func (c *Client) GetOrders(userId string) []*core.ExOrder {
+type Orders struct {
+	Asks []*core.ExOrder `json:"Asks"`
+	Bids []*core.ExOrder `json:"Bids"`
+}
+
+// Define the Response struct to match the entire JSON response
+type Response struct {
+	Orders Orders `json:"orders"`
+	Status string `json:"status"`
+}
+
+func (c *Client) GetOrders(userId string) Response {
 	endpoint := Endpoint + "/order?userID=" + userId
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -241,7 +252,7 @@ func (c *Client) GetOrders(userId string) []*core.ExOrder {
 
 	if res.StatusCode == http.StatusOK {
 		// Decode response body
-		var response map[string]interface{}
+		var response Response
 		bodyBytes, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			log.Fatalf("client: error reading response body: %s\n", err)
@@ -252,17 +263,15 @@ func (c *Client) GetOrders(userId string) []*core.ExOrder {
 			log.Fatalf("client: error unmarshaling response body: %s\n", err)
 		}
 
-		if orders, ok := response["orders"].([]interface{}); ok {
-			log.Printf("client: found %d orders for user %s\n", len(orders), userId)
-			return nil
-		}
+		log.Printf("client: asks orders are %v and bids orders are %v\n", len(response.Orders.Asks), len(response.Orders.Bids))
 
-		log.Println("client: orders not found in response")
+		return response
+
 	} else {
 		log.Printf("client: failed to get orders, status code: %d\n", res.StatusCode)
 	}
 
-	return nil
+	return Response{}
 }
 
 func calculateAvgMarketOrderPrice(matches []interface{}) float64 {
