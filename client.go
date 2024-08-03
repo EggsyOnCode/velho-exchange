@@ -274,6 +274,42 @@ func (c *Client) GetOrders(userId string) Response {
 	return Response{}
 }
 
+func (c *Client) GetTrades(market string) []*core.Trade {
+	endpoint := Endpoint + "/trade?market=" + market
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		log.Fatalf("client: error creating http request: %s\n", err)
+	}
+
+	res, err := c.client.Do(req)
+	if err != nil {
+		log.Fatalf("client: error making http request: %s\n", err)
+	}
+
+	if res.StatusCode == http.StatusOK {
+		// Decode response body
+		var response []*core.Trade
+		bodyBytes, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Fatalf("client: error reading response body: %s\n", err)
+		}
+
+		err = json.Unmarshal(bodyBytes, &response)
+		if err != nil {
+			log.Fatalf("client: error unmarshaling response body: %s\n", err)
+		}
+
+		log.Printf("client: trades are %v\n", len(response))
+
+		return response
+
+	} else {
+		log.Printf("client: failed to get trades, status code: %d\n", res.StatusCode)
+	}
+
+	return nil
+}
+
 func calculateAvgMarketOrderPrice(matches []interface{}) float64 {
 	var total float64
 	for _, m := range matches {

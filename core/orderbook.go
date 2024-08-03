@@ -11,6 +11,16 @@ import (
 	"github.com/zyedidia/generic/avl"
 )
 
+// these are to be used on the Front end for displaying recent trades
+// every match order is a trade
+// these trades are getting aggregated later on for analysis
+type Trade struct {
+	Price     float64
+	Size      float64
+	Bid       bool
+	Timestamp int64
+}
+
 type Match struct {
 	Ask        *Order
 	Bid        *Order
@@ -88,6 +98,8 @@ type OrderBook struct {
 	AsksMap map[float64]*Limit
 	BidsMap map[float64]*Limit
 
+	Trades *avl.Tree[int64, *Trade]
+
 	OrdersMap map[uuid.UUID]*Order
 
 	totalBidVolume float64
@@ -105,6 +117,7 @@ func NewOrderBook(tokenID Market) *OrderBook {
 		AsksMap:   make(map[float64]*Limit),
 		BidsMap:   make(map[float64]*Limit),
 		OrdersMap: make(map[uuid.UUID]*Order),
+		Trades:    avl.New[int64, *Trade](g.Greater[int64]),
 		TokenId:   tokenID,
 	}
 }
@@ -363,6 +376,15 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 		})
 	}
 
+	for _, m := range matches {
+		ob.Trades.Put(m.Ask.Timestamp, &Trade{
+			Price:     m.Price,
+			Size:      m.SizeFilled,
+			Bid:       m.Bid.Bid,
+			Timestamp: time.Now().UnixNano(),
+		})
+	}
+
 	ob.BalanceOrderBookForMarketOrder(o, matches)
 
 	return matches
@@ -523,4 +545,12 @@ func (ob *OrderBook) GetBestAskPrice() float64 {
 	})
 
 	return requiredLimit.Price
+}
+
+func (ob *OrderBook) GetTrades() []*Trade {
+	trades := make([]*Trade, 0)
+	ob.Trades.Each(func(key int64, val *Trade) {
+		trades = append(trades, val)
+	})
+	return trades
 }

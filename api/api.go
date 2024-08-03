@@ -51,6 +51,10 @@ func (s *Server) registerRoutes() {
 	s.echo.GET("/order", func(ctx echo.Context) error {
 		return handlers.HandleGetOrders(ctx, s.exchange)
 	})
+
+	s.echo.GET("/trade", func(ctx echo.Context) error {
+		return handlers.HandleGetTrades(ctx, s.exchange)
+	})
 }
 
 func (s *Server) Start(addr string) {
