@@ -227,8 +227,43 @@ func (c *Client) GetBestBidPrice(market string) float64 {
 	return 0
 }
 
+func (c *Client) GetOrders(userId string) []*core.ExOrder {
+	endpoint := Endpoint + "/order?userID=" + userId
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		log.Fatalf("client: error creating http request: %s\n", err)
+	}
 
+	res, err := c.client.Do(req)
+	if err != nil {
+		log.Fatalf("client: error making http request: %s\n", err)
+	}
 
+	if res.StatusCode == http.StatusOK {
+		// Decode response body
+		var response map[string]interface{}
+		bodyBytes, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Fatalf("client: error reading response body: %s\n", err)
+		}
+
+		err = json.Unmarshal(bodyBytes, &response)
+		if err != nil {
+			log.Fatalf("client: error unmarshaling response body: %s\n", err)
+		}
+
+		if orders, ok := response["orders"].([]interface{}); ok {
+			log.Printf("client: found %d orders for user %s\n", len(orders), userId)
+			return nil
+		}
+
+		log.Println("client: orders not found in response")
+	} else {
+		log.Printf("client: failed to get orders, status code: %d\n", res.StatusCode)
+	}
+
+	return nil
+}
 
 func calculateAvgMarketOrderPrice(matches []interface{}) float64 {
 	var total float64
@@ -238,5 +273,3 @@ func calculateAvgMarketOrderPrice(matches []interface{}) float64 {
 	}
 	return total / float64(len(matches))
 }
-
-

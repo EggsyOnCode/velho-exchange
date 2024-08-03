@@ -8,7 +8,15 @@ import (
 )
 
 type (
-	Market string
+	Market  string
+	ExOrder struct {
+		ID        string
+		Size      int64
+		Timestamp int64
+		Price     float64
+		Bid       bool
+		UserID    string
+	}
 )
 
 const (
@@ -23,6 +31,8 @@ type Exchange struct {
 	OrderBook  map[Market]*OrderBook
 	Users      map[string]*auth.User
 	UsdPool    float64
+	// stored against user ID
+	orders map[string][]*ExOrder
 }
 
 func NewExchange() *Exchange {
@@ -39,6 +49,7 @@ func NewExchange() *Exchange {
 		OrderBook:  orderbooks,
 		UsdPool:    0,
 		Users:      make(map[string]*auth.User),
+		orders:     make(map[string][]*ExOrder, 0),
 	}
 
 	orderbooks[BTC].SetExchange(ex)
@@ -50,4 +61,17 @@ func NewExchange() *Exchange {
 
 func (ex *Exchange) AddUser(user *auth.User) {
 	ex.Users[user.ID.String()] = user
+}
+
+func (ex *Exchange) AddOrder(order *ExOrder) {
+	if ex.orders[order.UserID] == nil {
+		ex.orders[order.UserID] = []*ExOrder{order}
+	}
+	ex.orders[order.UserID] = append(ex.orders[order.UserID], order)
+
+}
+
+func (ex *Exchange) GetOrders(userId string) ([]*ExOrder, bool) {
+	orders, ok := ex.orders[userId]
+	return orders, ok
 }

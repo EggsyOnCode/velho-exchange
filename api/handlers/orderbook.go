@@ -27,25 +27,16 @@ type PlaceOrderRequest struct {
 	Market    core.Market `json:"market"`
 }
 
-type Order struct {
-	ID        string
-	Size      int64
-	Timestamp int64
-	Price     float64
-	Bid       bool
-	UserID    string
-}
-
 type User struct {
 	PrivateKey string  `json:"private_key"`
 	Usd        float64 `json:"usd"`
 }
 
 type OrderBookResponse struct {
-	TotalAskVolume float64  `json:"total_ask_volume"`
-	TotalBidVolume float64  `json:"total_bid_volume"`
-	Asks           []*Order `json:"asks"`
-	Bids           []*Order `json:"bids"`
+	TotalAskVolume float64         `json:"total_ask_volume"`
+	TotalBidVolume float64         `json:"total_bid_volume"`
+	Asks           []*core.ExOrder `json:"asks"`
+	Bids           []*core.ExOrder `json:"bids"`
 }
 
 func HandlePlaceOrder(ctx echo.Context, e *core.Exchange) error {
@@ -56,8 +47,21 @@ func HandlePlaceOrder(ctx echo.Context, e *core.Exchange) error {
 		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
 	}
 
+	// add order to exchange
 	ob := e.OrderBook[placeOrder.Market]
 	order := core.NewOrder(placeOrder.Size, placeOrder.Bid, placeOrder.Price, userId)
+
+	o := &core.ExOrder{
+		Size:      order.Size,
+		Price:     order.Price,
+		ID:        order.ID.String(),
+		UserID:    userId,
+		Bid:       order.Bid,
+		Timestamp: order.Timestamp,
+	}
+
+	e.AddOrder(o)
+
 	if placeOrder.OrderType == LimitOrder {
 		ob.PlaceLimitOrder(placeOrder.Price, order)
 		return ctx.JSON(http.StatusOK, map[string]string{"status": "success", "id": order.ID.String()})
@@ -73,12 +77,12 @@ func HandleGetOrderBook(ctx echo.Context, e *core.Exchange) error {
 	market := ctx.QueryParam("market")
 	ob := e.OrderBook[core.Market(market)]
 
-	asks := make([]*Order, 0)
-	bids := make([]*Order, 0)
+	asks := make([]*core.ExOrder, 0)
+	bids := make([]*core.ExOrder, 0)
 
 	ob.Asks.Each(func(key float64, val *core.Limit) {
 		val.Orders.Each(func(key int64, val *core.Order) {
-			order := &Order{
+			order := &core.ExOrder{
 				Size:      val.Size,
 				Timestamp: val.Timestamp,
 				Price:     val.Price,
@@ -92,7 +96,7 @@ func HandleGetOrderBook(ctx echo.Context, e *core.Exchange) error {
 
 	ob.Bids.Each(func(key float64, val *core.Limit) {
 		val.Orders.Each(func(key int64, val *core.Order) {
-			order := &Order{
+			order := &core.ExOrder{
 				Size:      val.Size,
 				Timestamp: val.Timestamp,
 				Price:     val.Price,
@@ -171,11 +175,21 @@ func HandleGetBestBidPrice(ctx echo.Context, e *core.Exchange) error {
 	return ctx.JSON(http.StatusOK, map[string]float64{"price": price})
 }
 
-
 func HandleGetBestAskPrice(ctx echo.Context, e *core.Exchange) error {
 	market := ctx.QueryParam("market")
 	ob := e.OrderBook[core.Market(market)]
 	price := ob.GetBestAskPrice()
 
 	return ctx.JSON(http.StatusOK, map[string]float64{"price": price})
+}
+
+func HandleGetOrders(ctx echo.Context, e *core.Exchange) error {
+	id := ctx.QueryParam("userID")
+
+	orders, exists := e.GetOrders(id)
+	if !exists {
+		return ctx.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+	}
+
+	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "orders": orders})
 }

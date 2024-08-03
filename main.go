@@ -51,6 +51,8 @@ func seedMarketMaker(client *Client) {
 	client.PlaceOrder("LIMIT", 8000.0, 7, true, "ETH", userResponses[2])
 	client.PlaceOrder("LIMIT", 11500.0, 5, false, "ETH", userResponses[0])
 
+	client.GetOrders(userResponses[0])
+
 }
 
 func createMarketMaker(client *Client) {
@@ -97,11 +99,13 @@ func main() {
 
 	seedMarketMaker(client)
 
-	go createMarketMaker(client)
 
-	time.Sleep(1 * time.Second)
 
-	marketMakerPlacer(client)
+	// go createMarketMaker(client)
+
+	// time.Sleep(1 * time.Second)
+
+	// marketMakerPlacer(client)
 
 	// // Create a market order to buy a million ETH
 	// client.PlaceOrder("MARKET", 0, 50, false, "ETH", userResponses[2])
