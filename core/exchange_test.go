@@ -126,9 +126,8 @@ func TestExchangeSellLimitBuyMarket(t *testing.T) {
 
 	ob.CancelOrderById(sellOrder1.ID.String())
 
-
 	uptedUser1Eth := float64(10000-2) - gasPrice
-	
+
 	user1BalUpdated := internals.GetBalance(internals.GetAddress(users[1].PrivateKey))
 	assert.InEpsilon(t, user1BalUpdated, uptedUser1Eth, tolerance, "User balance should match expected value within tolerance")
 }

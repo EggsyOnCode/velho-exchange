@@ -30,7 +30,7 @@ func marketMakerPlacer(client *Client) {
 	}
 }
 
-func seedMarketMaker(client *Client) {
+func seedMarketMaker(client *Client) []string {
 
 	strings := []string{
 		"7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
@@ -51,7 +51,7 @@ func seedMarketMaker(client *Client) {
 	client.PlaceOrder("LIMIT", 8000.0, 7, true, "ETH", userResponses[2])
 	client.PlaceOrder("LIMIT", 11500.0, 5, false, "ETH", userResponses[0])
 
-	client.GetOrders(userResponses[0])
+	return userResponses
 
 }
 
@@ -60,6 +60,9 @@ func createMarketMaker(client *Client) {
 	ticker := time.NewTicker(tick)
 	// , _ := internals.GetPrivKeyFromHexString("2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6")
 	mmUserID := client.RegisterUser("2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6", 1_000_000.0)
+	fmt.Println("--------------------------h")
+	fmt.Printf("Market Maker User ID: %s\n", mmUserID)
+	fmt.Println("--------------------------h")
 	straddle := 100.0
 
 	for {
@@ -97,13 +100,16 @@ func main() {
 
 	client := NewClient()
 
-	seedMarketMaker(client)
+	users := seedMarketMaker(client)
 
+	mmUserID := client.RegisterUser("2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6", 1_000_000.0)
+	fmt.Printf("Market Maker User ID: %s\n", mmUserID)
 
-
+	time.Sleep(3 * time.Second)
+	client.PlaceOrder("MARKET", 11500, 12, true, "ETH", mmUserID)
 	// go createMarketMaker(client)
 
-	// time.Sleep(1 * time.Second)
+	client.GetOrders(users[0])
 
 	// marketMakerPlacer(client)
 

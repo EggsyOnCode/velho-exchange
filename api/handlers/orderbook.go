@@ -58,6 +58,8 @@ func HandlePlaceOrder(ctx echo.Context, e *core.Exchange) error {
 		UserID:    userId,
 		Bid:       order.Bid,
 		Timestamp: order.Timestamp,
+		OrderType: core.OrderType(placeOrder.OrderType),
+		Market:    placeOrder.Market,
 	}
 
 	e.AddOrder(o)
@@ -89,6 +91,8 @@ func HandleGetOrderBook(ctx echo.Context, e *core.Exchange) error {
 				Bid:       val.Bid,
 				ID:        val.ID.String(),
 				UserID:    val.UserID,
+				Market:    core.Market(market),
+				OrderType: core.LimitOrder,
 			}
 			asks = append(asks, order)
 		})
@@ -103,6 +107,8 @@ func HandleGetOrderBook(ctx echo.Context, e *core.Exchange) error {
 				Bid:       val.Bid,
 				ID:        val.ID.String(),
 				UserID:    val.UserID,
+				Market:    core.Market(market),
+				OrderType: core.LimitOrder,
 			}
 			bids = append(bids, order)
 		})
@@ -189,6 +195,9 @@ func HandleGetOrders(ctx echo.Context, e *core.Exchange) error {
 	orders, exists := e.GetOrders(id)
 	if !exists {
 		return ctx.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+	}
+	if len(orders) == 0 {
+		return ctx.JSON(http.StatusExpectationFailed, map[string]string{"error": "Orders not found; they are either filled or non-existant"})
 	}
 
 	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "orders": orders})

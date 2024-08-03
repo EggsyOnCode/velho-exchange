@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/EggsyOnCode/velho-exchange/internals"
@@ -55,7 +56,7 @@ func (o *Order) TotalPrice() float64 {
 func (o *Order) String() string {
 	t := time.Unix(o.Timestamp, 0)
 	format := t.Format("2006-01-02 15:04:05")
-	return fmt.Sprintf("Order{Size: %d, Timestamp: %v, Bid: %v}", o.Size, format, o.Bid)
+	return fmt.Sprintf("Order{ID: %s, UserID: %s, Size: %d, Timestamp: %s, Price: %f, Bid: %v}", o.ID, o.UserID, o.Size, format, o.Price, o.Bid)
 }
 
 func (o *Order) IsFilled() bool {
@@ -128,7 +129,7 @@ func (l *Limit) RemoveOrders(orders []*Order) bool {
 }
 
 // we fill a bid / buyOrder
-func (l *Limit) Fill(o *Order) ([]Match, bool) {
+func (l *Limit) Fill(o *Order) ([]Match, []*Order, bool) {
 	var (
 		matches      []Match
 		filledOrders []*Order
@@ -156,11 +157,11 @@ func (l *Limit) Fill(o *Order) ([]Match, bool) {
 
 	flag := l.RemoveOrders(filledOrders)
 	if flag {
-		return matches, true
+		return matches, filledOrders, true
 	}
 
 	// if the limit is empty, then we'll remove it from the orderbook
-	return matches, false
+	return matches, filledOrders, false
 }
 
 func (l *Limit) fillOrder(o, order *Order) Match {
@@ -204,14 +205,22 @@ func (l *Limit) fillOrder(o, order *Order) Match {
 func (ob *OrderBook) DeleteLimit(price float64, bid bool) {
 	if bid {
 		if l, ok := ob.BidsMap[price]; ok {
+			// Delete the limit from the BidsMap
 			delete(ob.BidsMap, price)
+			// Remove the limit from the Bids tree
 			ob.Bids.Remove(price)
+
+			// Update the total bid volume
 			ob.totalBidVolume -= l.TotalVolume
 		}
 	} else {
 		if l, ok := ob.AsksMap[price]; ok {
+			// Delete the limit from the AsksMap
 			delete(ob.AsksMap, price)
+			// Remove the limit from the Asks tree
 			ob.Asks.Remove(price)
+
+			// Update the total ask volume
 			ob.totalAskVolume -= l.TotalVolume
 		}
 	}
@@ -239,6 +248,7 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 			ob.totalBidVolume += float64(o.Size)
 			// tranferring usd to the exchange
 			ob.TransferUSD(o.UserID, o.TotalPrice(), true)
+
 		} else {
 			limit = NewLimit(price)
 			ob.BidsMap[price] = limit
@@ -250,6 +260,8 @@ func (ob *OrderBook) PlaceLimitOrder(price float64, o *Order) {
 
 			// transfering usd to the exchange
 			ob.TransferUSD(o.UserID, o.TotalPrice(), true)
+
+			log.Printf("order added is %v\n", ob.OrdersMap[o.ID])
 		}
 
 	} else {
@@ -297,8 +309,9 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 				return
 			}
 			// we'll match the order with the asks ; incrementally starting from the lowest ask
-			limitMatches, flag := l.Fill(o)
+			limitMatches, filledOrders, flag := l.Fill(o)
 			matches = append(matches, limitMatches...)
+			ob.deleteOrders(filledOrders)
 
 			if flag {
 				ob.DeleteLimit(key, false)
@@ -330,8 +343,9 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 				return
 			}
 			// we'll match the order with the bids ; incrementally starting from the highest ask
-			limitMatches, flag := l.Fill(o)
+			limitMatches, filledOrders, flag := l.Fill(o)
 			matches = append(matches, limitMatches...)
+			ob.deleteOrders(filledOrders)
 
 			if o.IsFilled() {
 				stop = true
@@ -360,9 +374,17 @@ func (ob *OrderBook) CancelOrder(o *Order) {
 	}
 }
 
+func (ob *OrderBook) deleteOrders(o []*Order) {
+	for _, order := range o {
+		delete(ob.OrdersMap, order.ID)
+	}
+
+}
+
 func (ob *OrderBook) GetOrderById(id string) *Order {
 	uuid := uuid.MustParse(id)
-	o, _ := ob.OrdersMap[uuid]
+	o := ob.OrdersMap[uuid]
+
 	return o
 }
 
