@@ -86,9 +86,6 @@ func (c *Client) PlaceOrder(orderType string, price float64, size int64, bid boo
 			}
 		} else {
 			if matches, ok := response["matches"].([]interface{}); ok {
-				logrus.WithFields(logrus.Fields{
-					"matches": strconv.Itoa(len(matches)),
-				}).Info("market order SUCCESSFUL")
 
 				return strconv.Itoa(len(matches))
 			}
@@ -180,7 +177,6 @@ func (c *Client) GetBestAskPrice(market string) float64 {
 		}
 
 		if price, ok := response["price"]; ok {
-			log.Printf("client: best ask price for market %s: %f\n", market, price)
 			return price
 		}
 
@@ -218,7 +214,6 @@ func (c *Client) GetBestBidPrice(market string) float64 {
 		}
 
 		if price, ok := response["price"]; ok {
-			log.Printf("client: best ask price for market %s: %f\n", market, price)
 			return price
 		}
 

@@ -113,6 +113,7 @@ type OrderBook struct {
 	totalAskVolume float64
 	Exchange       *Exchange
 	TokenId        Market
+	CurrentPrice   float64
 }
 
 func NewOrderBook(tokenID Market) *OrderBook {
@@ -120,12 +121,13 @@ func NewOrderBook(tokenID Market) *OrderBook {
 		// asks are sorted in ascending order : lowest ask first
 		Asks: avl.New[float64, *Limit](g.Less[float64]),
 		// bids are sorted in descending order : highest bid first
-		Bids:      avl.New[float64, *Limit](g.Greater[float64]),
-		AsksMap:   make(map[float64]*Limit),
-		BidsMap:   make(map[float64]*Limit),
-		OrdersMap: make(map[uuid.UUID]*Order),
-		Trades:    avl.New[int64, *Trade](g.Greater[int64]),
-		TokenId:   tokenID,
+		Bids:         avl.New[float64, *Limit](g.Greater[float64]),
+		AsksMap:      make(map[float64]*Limit),
+		BidsMap:      make(map[float64]*Limit),
+		OrdersMap:    make(map[uuid.UUID]*Order),
+		Trades:       avl.New[int64, *Trade](g.Greater[int64]),
+		TokenId:      tokenID,
+		CurrentPrice: 0,
 	}
 }
 
@@ -422,6 +424,21 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 	}
 
 	ob.BalanceOrderBookForMarketOrder(o, matches)
+
+	//INFO: the current price of an asset is the price it was latest traded on (doesn't matter buy or sell)
+	latestTrade, _ := ob.Trades.Get(matches[len(matches)-1].Ask.Timestamp)
+	price := latestTrade.Price / latestTrade.Size
+
+	logrus.WithFields(logrus.Fields{
+		"currentPrice": price,
+	}).Info("current price of the asset")
+
+	logrus.WithFields(logrus.Fields{
+		"matches":   len(matches),
+		"avg Price": price,
+	}).Info("market order filled")
+
+	ob.CurrentPrice = price
 
 	return matches
 }

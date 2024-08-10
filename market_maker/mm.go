@@ -11,9 +11,11 @@ type Config struct {
 	UserID         string
 	MarketInterval time.Duration
 	OrderSize      int64
+	// 2x of price offset
 	MinSpread      int64
 	SeedOffset     float64
 	ExClient       *client.Client
+	PriceOffset    float64
 }
 
 type MarketMaker struct {
@@ -22,6 +24,7 @@ type MarketMaker struct {
 	orderSize      int64
 	minSpread      int64
 	seedOffset     float64
+	priceOffset    float64
 	exClient       *client.Client
 }
 
@@ -33,34 +36,58 @@ func NewMarketMaker(cfg Config) *MarketMaker {
 		minSpread:      cfg.MinSpread,
 		seedOffset:     cfg.SeedOffset,
 		exClient:       cfg.ExClient,
+		priceOffset:    cfg.PriceOffset,
 	}
 }
 
 func (mm *MarketMaker) Start() {
-	go mm.seedMarket()
+
+	logrus.WithFields(logrus.Fields{
+		"userId":         mm.userID,
+		"orderSize":      mm.orderSize,
+		"seedOffset":     mm.seedOffset,
+		"minSpread":      mm.minSpread,
+		"marketInterval": mm.marketInterval,
+	}).Info("market maker starting ")
+
+	go mm.makerLoop()
 }
 
-func (mm *MarketMaker) seedMarket() {
+func (mm *MarketMaker) makerLoop() {
+
 	ticker := time.NewTicker(mm.marketInterval)
-	price := simulateFetchCurrentEthPrice()
 
 	for {
-		logrus.WithFields(logrus.Fields{
-			"price":          price,
-			"userId":         mm.userID,
-			"orderSize":      mm.orderSize,
-			"seedOffset":     mm.seedOffset,
-			"minSpread":      mm.minSpread,
-			"marketInterval": mm.marketInterval,
-		}).Info("market maker => seeding market ")
-		//bid
-		mm.exClient.PlaceOrder("LIMIT", price-(mm.seedOffset), mm.orderSize, true, "ETH", mm.userID)
+		bestBid := mm.exClient.GetBestBidPrice("ETH")
+		bestAsk := mm.exClient.GetBestAskPrice("ETH")
 
-		// ask
-		mm.exClient.PlaceOrder("LIMIT", price+(mm.seedOffset), mm.orderSize, false, "ETH", mm.userID)
+		if bestBid == 0 && bestAsk == 0 {
+			mm.seedMarket()
+			continue
+		}
+
+		spread := bestAsk - bestBid
+		if spread <= float64(mm.minSpread) {
+			continue
+		}
+
+		// market making strategy : Tightening the Spread
+		mm.exClient.PlaceOrder("LIMIT", bestBid+mm.priceOffset, mm.orderSize, true, "ETH", mm.userID)
+		mm.exClient.PlaceOrder("LIMIT", bestAsk-mm.priceOffset, mm.orderSize, false, "ETH", mm.userID)
 
 		<-ticker.C
 	}
+}
+
+func (mm *MarketMaker) seedMarket() {
+	price := simulateFetchCurrentEthPrice()
+
+	//bid
+	mm.exClient.PlaceOrder("LIMIT", price-(mm.seedOffset), mm.orderSize, true, "ETH", mm.userID)
+
+	// ask
+	mm.exClient.PlaceOrder("LIMIT", price+(mm.seedOffset), mm.orderSize, false, "ETH", mm.userID)
+
 }
 
 // this function is used to simulate fetching the current ETH price

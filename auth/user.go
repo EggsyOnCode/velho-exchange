@@ -23,7 +23,6 @@ func NewUser(pk *ecdsa.PrivateKey, usd float64) *User {
 		pk = internals.GenerateNewPrivateKey()
 	}
 
-	fmt.Printf("usd is %v \n", usd)
 
 	user := &User{
 		ID:         uuid.New(),
