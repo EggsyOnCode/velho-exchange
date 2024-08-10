@@ -97,3 +97,4 @@ func (ex *Exchange) GetOrders(userId string) ([]*ExOrder, bool) {
 
 	return orders, exists
 }
+
