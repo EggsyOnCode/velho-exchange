@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"encoding/hex"
 	"log"
 	"math/big"
 
@@ -120,4 +121,9 @@ func GetBalance(addr common.Address) float64 {
 
 	ans, _ := WeiToEther(bal).Float64()
 	return ans
+}
+
+// Ensure you have this function in your internals package
+func EncodeHexString(pk *ecdsa.PrivateKey) string {
+	return hex.EncodeToString(crypto.FromECDSA(pk))
 }

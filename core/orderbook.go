@@ -416,7 +416,7 @@ func (ob *OrderBook) PlaceMarketOrder(o *Order) []Match {
 
 	for _, m := range matches {
 		ob.Trades.Put(m.Ask.Timestamp, &Trade{
-			Price:     m.Price,
+			Price:     m.Price / m.SizeFilled,
 			Size:      m.SizeFilled,
 			Bid:       m.Bid.Bid,
 			Timestamp: time.Now().UnixNano(),
@@ -527,15 +527,30 @@ func (ob *OrderBook) TransferUSDBetweenUsers(from, to string, usd float64) {
 	toUser.USD += usd
 }
 
-func (ob *OrderBook) TransferUSD(userID string, usd float64, toExchange bool) {
-	user := ob.Exchange.Users[userID]
+func (ob *OrderBook) TransferUSD(userID string, usd float64, toExchange bool) error {
+	user, ok := ob.Exchange.Users[userID]
+	if !ok {
+		return fmt.Errorf("User %s not found", userID)
+	}
+
 	if toExchange {
+		if user.USD < usd {
+			return fmt.Errorf("Insufficient USD balance for user %s", userID)
+		}
 		user.USD -= usd
 		ob.Exchange.UsdPool += usd
 	} else {
+		// Allow negative balances (optional):
+		// user.USD += usd
+		// Disallow negative balances:
+		if user.USD+usd < 0 {
+			return fmt.Errorf("Transfer would result in negative USD balance for user %s", userID)
+		}
 		user.USD += usd
 		ob.Exchange.UsdPool -= usd
 	}
+
+	return nil
 }
 
 // iterates over matches and transfers tokens or/and USD depending on the type of market order
@@ -614,4 +629,8 @@ func CalculateAvgMarketOrderPrice(matches []Match) float64 {
 		total += m.Price / m.SizeFilled
 	}
 	return total / float64(len(matches))
+}
+
+func (ob *OrderBook) GetMarketPrice() float64 {
+	return ob.CurrentPrice
 }

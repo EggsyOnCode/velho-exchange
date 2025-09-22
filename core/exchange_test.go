@@ -22,9 +22,6 @@ func TestExchange(t *testing.T) {
 	ex.AddUser(users[0])
 	ex.AddUser(users[1])
 	ex.AddUser(users[2])
-	fmt.Println("user id of buyer 0", users[0].ID.String())
-	fmt.Println("user id of 1", users[1].ID.String())
-	fmt.Println("user id of seller 2", users[2].ID.String())
 
 	// buying ETH and selling USD
 	buyOrder := NewOrder(3, true, 400, users[0].ID.String())
@@ -57,7 +54,7 @@ func TestExchange(t *testing.T) {
 
 	gasPrice, _ := internals.GetGasPrice()
 
-	tolerance := 0.0005
+	tolerance := 0.0000005
 
 	assert.InEpsilon(t, 9995.0-gasPrice, user2Bal, tolerance, "User balance should match expected value within tolerance")
 	assert.InEpsilon(t, 10000.0-gasPrice, exBal, tolerance, "Exchange balance should match expected value within tolerance")
@@ -116,7 +113,7 @@ func TestExchangeSellLimitBuyMarket(t *testing.T) {
 	user1Bal := internals.GetBalance(internals.GetAddress(users[1].PrivateKey))
 	user2Bal := internals.GetBalance(internals.GetAddress(users[2].PrivateKey))
 
-	tolerance := 0.0005
+	tolerance := 0.0000005
 
 	assert.InEpsilon(t, user0Bal, expectedUser0ETH, tolerance, "User balance should match expected value within tolerance")
 	assert.InEpsilon(t, user1Bal, expectedUser1ETH, tolerance, "User balance should match expected value within tolerance")

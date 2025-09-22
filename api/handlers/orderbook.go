@@ -8,6 +8,7 @@ import (
 	"github.com/EggsyOnCode/velho-exchange/auth"
 	"github.com/EggsyOnCode/velho-exchange/core"
 	"github.com/EggsyOnCode/velho-exchange/internals"
+	"github.com/google/uuid"
 	"github.com/labstack/echo"
 )
 
@@ -134,11 +135,16 @@ func HandleGetOrderBook(ctx echo.Context, e *core.Exchange) error {
 }
 
 func HandleDeleteOrder(ctx echo.Context, e *core.Exchange) error {
-	id := ctx.QueryParam("id")
+	idStr := ctx.QueryParam("id")
 	market := ctx.QueryParam("market")
 	ob := e.OrderBook[core.Market(market)]
 
-	ob.CancelOrderById(id)
+	id, err := uuid.Parse(idStr) // Parse the ID here
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid order ID"})
+	}
+
+	ob.CancelOrderById(id.String())
 	return ctx.JSON(http.StatusOK, map[string]string{"status": "success"})
 }
 
@@ -188,18 +194,36 @@ func HandleGetUser(ctx echo.Context, e *core.Exchange) error {
 }
 
 func HandleGetBestBidPrice(ctx echo.Context, e *core.Exchange) error {
-	market := ctx.QueryParam("market")
-	ob := e.OrderBook[core.Market(market)]
-	price := ob.GetBestBidPrice()
+	marketStr := ctx.QueryParam("market")
+	market := core.Market(marketStr)
 
+	ob, ok := e.OrderBook[market] // Check if the orderbook exists
+	if !ok {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid market"})
+	}
+
+	if ob.Bids.Size() == 0 {
+		return ctx.JSON(http.StatusOK, map[string]float64{"price": 0}) // Or return a specific "no bids" value
+	}
+
+	price := ob.GetBestBidPrice()
 	return ctx.JSON(http.StatusOK, map[string]float64{"price": price})
 }
 
 func HandleGetBestAskPrice(ctx echo.Context, e *core.Exchange) error {
-	market := ctx.QueryParam("market")
-	ob := e.OrderBook[core.Market(market)]
-	price := ob.GetBestAskPrice()
+	marketStr := ctx.QueryParam("market")
+	market := core.Market(marketStr)
 
+	ob, ok := e.OrderBook[market] // Check if the orderbook exists
+	if !ok {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid market"})
+	}
+
+	if ob.Asks.Size() == 0 {
+		return ctx.JSON(http.StatusOK, map[string]float64{"price": 0}) // Or return a specific "no asks" value
+	}
+
+	price := ob.GetBestAskPrice()
 	return ctx.JSON(http.StatusOK, map[string]float64{"price": price})
 }
 
@@ -211,6 +235,14 @@ func HandleGetTrades(ctx echo.Context, e *core.Exchange) error {
 	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "trades": trades})
 }
 
+func HandleGetMarketPrice(ctx echo.Context, e *core.Exchange) error {
+	market := ctx.QueryParam("market")
+	ob := e.OrderBook[core.Market(market)]
+	price := ob.GetMarketPrice()
+
+	return ctx.JSON(http.StatusOK, map[string]any{"status": "success", "price": price})
+}
+
 func HandleGetOrders(ctx echo.Context, e *core.Exchange) error {
 	id := ctx.QueryParam("userID")
 
@@ -218,6 +250,7 @@ func HandleGetOrders(ctx echo.Context, e *core.Exchange) error {
 	if !exists {
 		return ctx.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
 	}
+
 	if len(orders) == 0 {
 		return ctx.JSON(http.StatusExpectationFailed, map[string]string{"error": "Orders not found; they are either filled or non-existant"})
 	}
